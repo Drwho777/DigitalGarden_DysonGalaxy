@@ -1,0 +1,93 @@
+﻿<div class="pointer-events-auto fixed bottom-6 left-6 z-20">
+  <button
+    id="ai-terminal-fab"
+    type="button"
+    class="glass-panel flex h-14 w-14 items-center justify-center rounded-full transition duration-200 hover:scale-105 hover:shadow-[0_0_20px_rgba(255,140,0,0.35)]"
+    aria-label="打开 Dyson Brain 终端"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      class="h-5 w-5 text-[var(--accent-cyan)]"
+      aria-hidden="true"
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    <span class="absolute right-0 top-0 h-3 w-3 animate-pulse rounded-full border-2 border-[var(--bg-base)] bg-emerald-400"></span>
+  </button>
+
+  <section
+    id="ai-terminal"
+    class="glass-panel hidden w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden"
+    aria-label="Dyson Brain Uplink"
+  >
+    <div class="border-b border-white/10 px-5 py-4">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.3em] text-[var(--accent-orange)]">
+            <span>Dyson Brain Uplink</span>
+            <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">Rule-based navigation relay / local MVP</p>
+        </div>
+
+        <button
+          id="ai-terminal-close"
+          type="button"
+          class="rounded-full border border-white/10 p-2 text-slate-400 transition-colors hover:border-[var(--accent-orange)]/40 hover:text-[var(--accent-orange)]"
+          aria-label="收起 Dyson Brain 终端"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            class="h-4 w-4"
+            aria-hidden="true"
+          >
+            <line x1="18" x2="6" y1="6" y2="18"></line>
+            <line x1="6" x2="18" y1="6" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-4 p-5">
+      <div
+        id="ai-terminal-history"
+        class="flex h-56 flex-col gap-3 overflow-y-auto pr-1"
+        role="log"
+        aria-live="polite"
+      >
+        <div class="max-w-[90%] rounded-xl border-l-2 border-[var(--accent-orange)] bg-[rgba(255,140,0,0.12)] px-4 py-3 text-sm leading-6 text-slate-200">
+          星系全景图已展开。你可以试试“带我去 ACG”或“打开数字花园日志”。
+        </div>
+      </div>
+
+      <form id="ai-terminal-form" class="flex gap-2">
+        <input
+          id="ai-terminal-input"
+          type="text"
+          class="min-w-0 flex-1 rounded-xl border border-[var(--accent-cyan)]/30 bg-black/45 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[var(--accent-orange)]"
+          placeholder="输入导航指令或专题名称..."
+          autocomplete="off"
+        />
+        <button
+          id="ai-terminal-send"
+          type="submit"
+          class="rounded-xl border border-[var(--accent-orange)]/40 bg-[rgba(255,140,0,0.16)] px-4 py-2 text-sm font-medium text-[var(--accent-orange)] transition-colors hover:bg-[rgba(255,140,0,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          发送
+        </button>
+      </form>
+    </div>
+  </section>
+</div>

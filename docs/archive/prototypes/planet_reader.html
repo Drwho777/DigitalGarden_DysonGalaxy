@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沉浸阅读 - 数字花园构建日志</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&family=Noto+Serif+SC:wght@400;700&display=swap');
+        
+        body { background-color: #030811; color: #E2E8F0; font-family: 'Space Grotesk', 'PingFang SC', sans-serif; overflow-x: hidden; }
+        .markdown-body p, .markdown-body li { font-family: 'Noto Serif SC', serif; font-size: 1.125rem; line-height: 1.8; color: #cbd5e1; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-family: 'Space Grotesk', 'PingFang SC', sans-serif; color: #f8fafc; }
+
+        .glass-nav { background: rgba(3, 8, 17, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0, 191, 255, 0.1); }
+        .planet-atmosphere { position: absolute; top: -20vh; left: 50%; transform: translateX(-50%); width: 80vw; height: 40vh; background: radial-gradient(ellipse at center, rgba(255, 140, 0, 0.15) 0%, rgba(3, 8, 17, 0) 70%); z-index: -1; pointer-events: none; }
+
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255, 140, 0, 0.5); border-radius: 3px; }
+        .tardis-btn:hover { box-shadow: 0 0 15px rgba(0, 191, 255, 0.4); border-color: rgba(0, 191, 255, 0.8); }
+    </style>
+</head>
+<body class="antialiased selection:bg-[#FF8C00] selection:text-white">
+
+    <div class="planet-atmosphere"></div>
+    <nav class="glass-nav fixed top-0 w-full z-50 transition-transform duration-300" id="navbar">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <button class="tardis-btn flex items-center gap-2 text-sm font-mono text-[#00BFFF] border border-[#00BFFF]/30 bg-[#00BFFF]/10 px-4 py-1.5 rounded-full transition-all duration-300 group" onclick="alert('返回 3D 星系枢纽！')">
+                <i data-lucide="rocket" class="w-4 h-4 group-hover:-translate-y-1 transition-transform"></i>
+                <span>TARDIS_RETURN // 返回星系</span>
+            </button>
+            <div class="hidden md:flex items-center gap-4 text-xs font-mono text-gray-400">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#FF8C00]"></span> 专题：数字花园构建日志</span>
+                <span class="text-white/20">|</span> <span>COORD: 135.42.08</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="text-gray-400 hover:text-white transition-colors"><i data-lucide="bot" class="w-5 h-5"></i></button>
+                <button class="text-gray-400 hover:text-white transition-colors"><i data-lucide="share-2" class="w-5 h-5"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-24 flex flex-col md:flex-row gap-12 relative">
+        <article class="flex-1 w-full max-w-3xl">
+            <header class="mb-12">
+                <div class="flex items-center gap-3 mb-4 text-sm font-mono text-[#FF8C00]">
+                    <span>DATA_NODE_01</span> <span class="text-white/20">—</span> <span>202X-10-24</span>
+                </div>
+                <h1 class="text-4xl md:text-5xl font-bold tracking-tight mb-6 leading-tight">
+                    从平面到宇宙：<br>为什么我们选择 3D 星系作为知识架构？
+                </h1>
+                <p class="text-xl text-gray-400 font-serif italic mb-6">
+                    "抛弃传统的列表式博客，我们正在构建一个多维度的阿卡夏记录终端。"
+                </p>
+                <div class="flex gap-2">
+                    <span class="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs text-gray-300 font-mono"># Astro</span>
+                    <span class="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs text-gray-300 font-mono"># Three.js</span>
+                </div>
+            </header>
+
+            <div class="prose prose-invert prose-lg max-w-none markdown-body prose-a:text-[#00BFFF] prose-img:rounded-xl prose-img:border prose-img:border-white/10 prose-headings:text-white prose-code:text-[#FF8C00] prose-code:bg-[#FF8C00]/10 prose-code:px-1 prose-code:rounded">
+                <p>在这个信息过载的时代，传统的“时间线排版”博客已经无法承载复杂的、网状的个人思想体系。当我们试图在前端工程、哲学思考和 ACG 文化之间建立联系时，列表式的呈现方式显得苍白无力。</p>
+                
+                <h2>1. 戴森球计划的启示</h2>
+                <p>在游玩《戴森球计划》时，我被那种从单一行星到包裹整个恒星系、再到建立跨星系物流网的宏大叙事所震撼。这与构建个人知识库的过程惊人地相似：</p>
+                <ul>
+                    <li><strong>恒星（Star）</strong>：我们的核心领域与大类（如：技术、哲学）。</li>
+                    <li><strong>行星（Planet）</strong>：具体的专题项目。</li>
+                    <li><strong>戴森云碎片（Swarm）</strong>：日常记录的零碎闪念与文章。</li>
+                </ul>
+
+                <blockquote><p>“我们不是在写博客，我们是在给自己的灵魂备份，构建一个数据驱动的阿卡夏记录。”</p></blockquote>
+
+                <h2>2. 引入塔迪斯 (TARDIS) 矩阵</h2>
+                <p>如果说 3D 星系解决了“空间结构”的隐喻，那么《神秘博士》中的塔迪斯则为我们提供了“时间与检索”的维度。</p>
+            </div>
+            
+            <footer class="mt-16 pt-8 border-t border-white/10 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=b6e3f4" alt="Author" class="w-12 h-12 rounded-full border border-white/20">
+                    <div>
+                        <div class="font-bold text-white">Explorer</div>
+                        <div class="text-xs text-gray-500 font-mono">SYSTEM_ARCHITECT</div>
+                    </div>
+                </div>
+            </footer>
+        </article>
+
+        <aside class="hidden lg:block w-64 shrink-0">
+            <div class="sticky top-32 space-y-8">
+                <div class="glass-panel p-5 rounded-xl border border-white/5 bg-white/5">
+                    <h3 class="text-xs font-mono text-gray-500 mb-4 tracking-widest uppercase">TABLE_OF_CONTENTS</h3>
+                    <ul class="space-y-3 text-sm text-gray-400 border-l-2 border-white/10 pl-3">
+                        <li><a href="#" class="hover:text-[#00BFFF] transition-colors block text-white">1. 戴森球计划的启示</a></li>
+                        <li><a href="#" class="hover:text-[#00BFFF] transition-colors block">2. 引入塔迪斯矩阵</a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        lucide.createIcons();
+        let lastScrollTop = 0; const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop && scrollTop > 100) navbar.style.transform = 'translateY(-100%)';
+            else navbar.style.transform = 'translateY(0)';
+            lastScrollTop = scrollTop;
+        });
+    </script>
+</body>
+</html>

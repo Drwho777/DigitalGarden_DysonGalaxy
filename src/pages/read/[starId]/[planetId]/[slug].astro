@@ -1,0 +1,170 @@
+﻿---
+import {
+  getCollection,
+  render,
+  type CollectionEntry,
+} from 'astro:content';
+import MainLayout from '../../../../layouts/MainLayout.astro';
+import TardisReturnLink from '../../../../components/shared/TardisReturnLink.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('nodes');
+
+  return entries.map((entry) => ({
+    params: {
+      starId: entry.data.starId,
+      planetId: entry.data.planetId,
+      slug: entry.slug,
+    },
+    props: { entry },
+  }));
+}
+
+export const prerender = true;
+
+interface Props {
+  entry: CollectionEntry<'nodes'>;
+}
+
+const { entry } = Astro.props as Props;
+const { Content, headings } = await render(entry);
+const publishedAt = entry.data.publishedAt.toLocaleDateString('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const articleTitleId = 'article-title';
+---
+
+<MainLayout title={`${entry.data.title} | Digital Garden`}>
+  <div class="page-frame isolate">
+    <div
+      class="planet-atmosphere"
+      style="background: radial-gradient(ellipse at center, rgba(255, 140, 0, 0.18) 0%, rgba(3, 8, 17, 0.02) 55%, transparent 74%);"
+    ></div>
+
+    <nav
+      id="reader-navbar"
+      class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[rgba(3,8,17,0.72)] backdrop-blur-xl transition-transform duration-300"
+    >
+      <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <TardisReturnLink />
+        <div class="hidden items-center gap-4 text-xs font-mono text-slate-400 md:flex">
+          <span class="flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-[var(--accent-orange)]"></span>
+            行星：{entry.data.planetId}
+          </span>
+          <span class="text-white/20">|</span>
+          <span>NODE: {entry.slug}</span>
+        </div>
+        <div class="flex items-center gap-3 text-xs font-mono text-slate-500">
+          <span class="hidden sm:inline">ARCHIVE / ACTIVE</span>
+        </div>
+      </div>
+    </nav>
+
+    <main class="mx-auto flex max-w-5xl flex-col gap-12 px-4 pb-24 pt-32 sm:px-6 lg:flex-row lg:px-8">
+      <article class="w-full max-w-3xl flex-1">
+        <header class="mb-12">
+          <div class="mb-4 flex flex-wrap items-center gap-3 text-sm font-mono text-[var(--accent-orange)]">
+            <span>DATA_NODE</span>
+            <span class="text-white/20">/</span>
+            <span>{publishedAt}</span>
+          </div>
+
+          <h1
+            id={articleTitleId}
+            class="max-w-4xl text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl"
+          >
+            {entry.data.title}
+          </h1>
+
+          <p class="mt-6 max-w-3xl text-lg italic text-slate-400 md:text-xl">
+            {entry.data.summary}
+          </p>
+
+          <div class="mt-6 flex flex-wrap gap-2">
+            {entry.data.tags.map((tag) => (
+              <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-mono text-slate-300">
+                #{tag}
+              </span>
+            ))}
+          </div>
+
+          <div class="mt-8 overflow-hidden rounded-[1.75rem] border border-white/10 bg-black/20 shadow-2xl">
+            <img
+              src={entry.data.heroImage}
+              alt={entry.data.title}
+              class="h-auto w-full object-cover"
+              loading="eager"
+            />
+          </div>
+        </header>
+
+        <div class="prose-body space-y-6 text-lg leading-8 text-slate-300 [&_a]:text-[var(--accent-cyan)] [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--accent-orange)] [&_blockquote]:bg-black/20 [&_blockquote]:px-5 [&_blockquote]:py-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-[rgba(255,140,0,0.12)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[var(--accent-orange)] [&_h2]:mt-10 [&_h2]:font-['Space_Grotesk',_'PingFang_SC',_sans-serif] [&_h2]:text-3xl [&_h2]:font-bold [&_h2]:text-white [&_h3]:mt-8 [&_h3]:font-['Space_Grotesk',_'PingFang_SC',_sans-serif] [&_h3]:text-2xl [&_h3]:font-bold [&_h3]:text-white [&_li]:ml-6 [&_li]:list-disc [&_p]:text-[1.1rem]">
+          <Content />
+        </div>
+
+        <footer class="mt-16 flex items-center justify-between border-t border-white/10 pt-8">
+          <div class="flex items-center gap-4">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/5 text-sm font-bold text-white">
+              DG
+            </div>
+            <div>
+              <div class="font-bold text-white">Explorer</div>
+              <div class="text-xs font-mono text-slate-500">SYSTEM_ARCHITECT</div>
+            </div>
+          </div>
+          <TardisReturnLink label="RETURN // Hub" />
+        </footer>
+      </article>
+
+      <aside class="w-full shrink-0 lg:w-64">
+        <div class="sticky top-28 space-y-6">
+          <div class="glass-panel rounded-2xl border border-white/5 p-5">
+            <h2 class="mb-4 text-xs font-mono uppercase tracking-[0.3em] text-slate-500">
+              Table Of Contents
+            </h2>
+            <ul class="space-y-3 border-l-2 border-white/10 pl-4 text-sm text-slate-400">
+              {headings.length > 0 ? (
+                headings
+                  .filter((heading) => heading.depth <= 2)
+                  .map((heading) => (
+                    <li>
+                      <a href={`#${heading.slug}`} class="block transition-colors hover:text-[var(--accent-cyan)]">
+                        {heading.text}
+                      </a>
+                    </li>
+                  ))
+              ) : (
+                <li class="text-slate-500">当前文章暂无可用目录。</li>
+              )}
+            </ul>
+          </div>
+
+          <div class="glass-panel rounded-2xl border border-white/5 p-5">
+            <div class="text-xs font-mono uppercase tracking-[0.3em] text-slate-500">
+              Metadata
+            </div>
+            <dl class="mt-4 space-y-3 text-sm text-slate-300">
+              <div class="flex items-start justify-between gap-4">
+                <dt class="text-slate-500">STAR</dt>
+                <dd class="text-right">{entry.data.starId}</dd>
+              </div>
+              <div class="flex items-start justify-between gap-4">
+                <dt class="text-slate-500">PLANET</dt>
+                <dd class="text-right">{entry.data.planetId}</dd>
+              </div>
+              <div class="flex items-start justify-between gap-4">
+                <dt class="text-slate-500">SLUG</dt>
+                <dd class="text-right">{entry.slug}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="../../../../scripts/reader-page-bootstrap.ts"></script>
+</MainLayout>

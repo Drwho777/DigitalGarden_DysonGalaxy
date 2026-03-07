@@ -1,17 +1,93 @@
+﻿---
+import AITerminal from '../components/ai/AITerminal.astro';
+import GalaxyScene from '../components/galaxy/GalaxyScene.astro';
+import InfoPanel from '../components/galaxy/InfoPanel.astro';
+import GalaxyHeader from '../components/shared/GalaxyHeader.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { getGalaxyData } from '../lib/galaxy-data';
+
+const galaxy = await getGalaxyData();
+const mapLegend = [
+  {
+    markerClass: 'h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_8px_#ffd700]',
+    label: '恒星 / 大分类领域',
+  },
+  {
+    markerClass:
+      'h-2.5 w-2.5 rounded-full bg-[var(--accent-orange)] ring-1 ring-white/40',
+    label: '行星 / 专题项目',
+  },
+  {
+    markerClass:
+      'h-[2px] w-3 bg-[var(--accent-cyan)] shadow-[0_0_4px_var(--accent-cyan)]',
+    label: '逻辑航道 / 跨域连接',
+  },
+  {
+    markerClass: 'h-2.5 w-2.5 rounded-full bg-[var(--accent-cyan)]',
+    label: '知识碎片 / 文章节点',
+  },
+];
+const homeHubInstruction =
+  '拖拽旋转星系 / 滚轮缩放 / 点击星体进行时空跃迁 / AI 指令将经由后端协定返回 { message, action }';
 ---
 
----
+<MainLayout title="Digital Garden | Galaxy Hub">
+  <div class="page-frame overflow-hidden">
+    <GalaxyScene galaxy={galaxy} />
+    <div class="scanlines absolute inset-0 z-[2]"></div>
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+    <div class="page-shell flex flex-col justify-between p-6 md:p-8">
+      <div class="flex items-start justify-between gap-6">
+        <div class="flex max-w-[min(520px,100%)] flex-col gap-4">
+          <GalaxyHeader />
+
+          <button
+            id="hub-back-btn"
+            type="button"
+            class="glass-panel hidden items-center gap-3 px-4 py-3 text-sm font-mono uppercase tracking-[0.18em] text-[var(--accent-orange)] transition-colors hover:border-[var(--accent-orange)]/40"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              class="h-4 w-4"
+              aria-hidden="true"
+            >
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>Return // 上一级</span>
+          </button>
+        </div>
+
+        <aside class="glass-panel hidden max-w-xs p-4 font-mono md:block">
+          <div class="mb-3 border-b border-cyan-500/20 pb-2 text-xs uppercase tracking-[0.3em] text-cyan-300">
+            Galactic Map
+          </div>
+          <ul class="space-y-3 text-xs text-slate-300">
+            {mapLegend.map((item) => (
+              <li class="flex items-center gap-2">
+                <span class={item.markerClass}></span>
+                {item.label}
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+
+      <div class="flex justify-center">
+        <div class="glass-panel max-w-3xl px-5 py-3 text-center text-xs font-mono uppercase tracking-[0.24em] text-slate-400 sm:text-sm">
+          {homeHubInstruction}
+        </div>
+      </div>
+    </div>
+
+    <InfoPanel />
+    <AITerminal />
+  </div>
+
+  <script src="../scripts/home-hub-bootstrap.ts"></script>
+</MainLayout>

@@ -1,0 +1,136 @@
+﻿---
+import MainLayout from '../../../layouts/MainLayout.astro';
+import TardisReturnLink from '../../../components/shared/TardisReturnLink.astro';
+import { getGalaxyData } from '../../../lib/galaxy-data';
+import { getGalleryExhibits } from '../../../data/gallery';
+
+export async function getStaticPaths() {
+  const galaxy = await getGalaxyData();
+
+  return galaxy.stars.flatMap((star) =>
+    star.planets
+      .filter((planet) => planet.pageType === 'gallery')
+      .map((planet) => ({
+        params: {
+          starId: star.id,
+          planetId: planet.id,
+        },
+        props: { star, planet },
+      })),
+  );
+}
+
+export const prerender = true;
+
+const { star, planet } = Astro.props as Awaited<ReturnType<typeof getStaticPaths>>[number]['props'];
+const galleryExhibits = getGalleryExhibits(planet.id);
+---
+
+<MainLayout title={`${planet.name} | Digital Garden`}>
+  <div class="page-frame isolate">
+    <div
+      class="planet-atmosphere"
+      style="background: radial-gradient(ellipse at center, rgba(147, 112, 219, 0.16) 0%, rgba(0, 250, 154, 0.06) 44%, transparent 72%);"
+    ></div>
+
+    <nav
+      id="gallery-navbar"
+      class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[rgba(3,8,17,0.72)] backdrop-blur-xl transition-transform duration-300"
+    >
+      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <TardisReturnLink label="TARDIS_RETURN // 返回星系" />
+        <div class="hidden items-center gap-4 text-xs font-mono text-slate-400 md:flex">
+          <span class="flex items-center gap-2">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-[var(--accent-violet)]"></span>
+            领域：{star.name}
+          </span>
+        </div>
+        <div class="text-xs font-mono uppercase tracking-[0.24em] text-slate-500">
+          Archive Mode
+        </div>
+      </div>
+    </nav>
+
+    <main class="mx-auto max-w-7xl px-4 pb-24 pt-32 sm:px-6 lg:px-8">
+      <header class="mb-12 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+        <div>
+          <div class="mb-4 flex items-center gap-3 text-sm font-mono text-[var(--accent-violet)]">
+            <span>VISUAL_DATABASE</span>
+            <span class="text-white/20">/</span>
+            <span>{planet.id}</span>
+          </div>
+          <h1 class="text-4xl font-bold tracking-tight text-white md:text-5xl">
+            {planet.name.slice(0, 4)}
+            <span class="text-[var(--accent-green)] [text-shadow:0_0_12px_rgba(0,250,154,0.55)]">
+              {planet.name.slice(4)}
+            </span>
+          </h1>
+          <p class="mt-3 max-w-3xl text-lg italic text-slate-400">
+            {planet.description}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2 text-xs font-mono">
+          <span class="rounded-full bg-[var(--accent-green)] px-4 py-2 font-bold text-black">
+            ALL // 全域
+          </span>
+          <span class="rounded-full border border-white/20 px-4 py-2 text-slate-300 transition-colors hover:border-[var(--accent-green)] hover:text-[var(--accent-green)]">
+            CYBERPUNK // 赛博朋克
+          </span>
+          <span class="rounded-full border border-white/20 px-4 py-2 text-slate-300 transition-colors hover:border-[var(--accent-green)] hover:text-[var(--accent-green)]">
+            ARCHIVE // 档案
+          </span>
+        </div>
+      </header>
+
+      <section class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {galleryExhibits.map((item, index) => (
+          <article
+            class:list={[
+              'tilt-card group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/30 shadow-2xl',
+              item.featured ? 'sm:col-span-2 h-80 lg:h-96' : 'h-80',
+            ]}
+          >
+            <img
+              src={item.image}
+              alt={item.title}
+              class="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-700 ease-out group-hover:scale-105 group-hover:opacity-100"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent"></div>
+            <div class="tilt-card-inner absolute inset-0 flex flex-col justify-end p-6">
+              <div class="mb-auto flex items-start justify-between gap-3">
+                <span class={`rounded-full border border-white/10 bg-black/45 px-3 py-1 text-xs font-mono backdrop-blur ${item.accent}`}>
+                  {item.tag}
+                </span>
+                {index === 0 ? (
+                  <span class="rounded-full border border-[var(--accent-green)]/30 bg-[var(--accent-green)]/15 px-3 py-1 text-xs font-mono text-[var(--accent-green)]">
+                    10.0 / 10
+                  </span>
+                ) : null}
+              </div>
+              <h2 class="text-2xl font-bold text-white">{item.title}</h2>
+              <p class="mt-2 text-sm leading-6 text-slate-300">{item.summary}</p>
+            </div>
+          </article>
+        ))}
+
+        <article class="tilt-card relative h-80 overflow-hidden rounded-[1.5rem] border border-[var(--accent-green)]/30 bg-black/40 shadow-[0_0_30px_rgba(0,250,154,0.1)]">
+          <div class="absolute inset-0 bg-[linear-gradient(rgba(0,250,154,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,250,154,0.1)_1px,transparent_1px)] bg-[length:20px_20px]"></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent"></div>
+          <div class="tilt-card-inner absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+            <div class="mb-4 text-5xl text-[var(--accent-green)]">[]</div>
+            <h2 class="text-xl font-bold text-white">3D 视觉数据库接口</h2>
+            <p class="mt-2 text-sm text-slate-400">
+              预留给后续扩展的 WebGL 展陈入口与策展卡片，用来承接更完整的视觉档案浏览体验。
+            </p>
+            <button class="mt-6 rounded-full bg-[var(--accent-green)] px-4 py-2 text-xs font-bold text-black transition-colors hover:bg-white">
+              INITIATE // 启动检索
+            </button>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../../scripts/gallery-page-bootstrap.ts"></script>
+</MainLayout>

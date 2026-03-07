@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字花园 - 戴森星系与塔迪斯矩阵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&display=swap');
+        
+        body { margin: 0; overflow: hidden; background-color: #00050A; font-family: 'Space Grotesk', 'PingFang SC', sans-serif; color: #fff; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2rem; box-sizing: border-box; }
+        
+        .glass-panel {
+            background: rgba(0, 15, 30, 0.65);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 191, 255, 0.2); border-top: 2px solid #FF8C00;
+            border-radius: 8px; pointer-events: auto; box-shadow: 0 8px 32px rgba(0, 191, 255, 0.15);
+        }
+
+        #back-btn { display: none; margin-top: 1rem; cursor: pointer; transition: all 0.3s; }
+        #back-btn:hover { background: rgba(255, 140, 0, 0.2); border-color: rgba(255, 140, 0, 0.5); }
+
+        /* AI 终端样式 */
+        #ai-terminal { position: absolute; bottom: 2rem; left: 2rem; width: 380px; max-height: 450px; display: flex; flex-direction: column; }
+        #chat-history { overflow-y: auto; flex-grow: 1; padding-right: 8px; display: flex; flex-direction: column; gap: 12px; }
+        .chat-msg { font-size: 0.85rem; line-height: 1.5; padding: 10px 14px; border-radius: 6px; max-width: 90%; }
+        .msg-user { background: rgba(0, 191, 255, 0.15); align-self: flex-end; border-right: 2px solid #00BFFF; }
+        .msg-ai { background: rgba(255, 140, 0, 0.15); align-self: flex-start; border-left: 2px solid #FF8C00; }
+
+        /* 修长侧边栏：文章阅读面板 */
+        #article-panel {
+            position: absolute; top: 2rem; bottom: 2rem; right: 2rem; width: 360px;
+            opacity: 0; visibility: hidden; transform: translateX(40px); z-index: 20; pointer-events: auto;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column;
+        }
+        #article-panel.active { opacity: 1; visibility: visible; transform: translateX(0); }
+        #article-panel.expanded { width: calc(100vw - 4rem); max-width: 1000px; right: 50%; transform: translateX(50%); }
+        #article-content { flex-grow: 1; overflow-y: auto; padding-right: 10px; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #FF8C00; border-radius: 2px; }
+        
+        .scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.15));
+            background-size: 100% 4px; z-index: 2; pointer-events: none; opacity: 0.4;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #ccc; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div class="scanlines"></div>
+
+    <div id="ui-layer">
+        <div class="flex justify-between items-start w-full">
+            <div>
+                <div class="glass-panel px-6 py-4">
+                    <h1 class="text-2xl font-bold tracking-widest uppercase text-[#00BFFF]">Galaxy Protocol</h1>
+                    <p class="text-[10px] text-[#FF8C00] mt-1 font-mono tracking-widest">DYSON SWARM & TARDIS MATRIX // ACTIVE</p>
+                </div>
+                <div id="back-btn" class="glass-panel px-4 py-2 flex items-center gap-2 text-sm text-[#FF8C00] font-mono">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    <span>返回上一层级 (或向后滚动滚轮)</span>
+                </div>
+            </div>
+
+            <div class="glass-panel px-4 py-3 flex flex-col gap-2 font-mono">
+                <div class="text-xs text-cyan-300 border-b border-cyan-500/30 pb-1 mb-1">GALACTIC MAP</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #FFF; box-shadow: 0 0 8px #FFD700"></div> 恒星 (大分类领域)</div>
+                <div class="legend-item"><div class="legend-dot bg-[#FF8C00]" style="border: 1px solid #FFF;"></div> 行星 (具体专题/项目)</div>
+                <div class="legend-item"><div style="width: 12px; height: 2px; background: #00BFFF; box-shadow: 0 0 4px #00BFFF;"></div> 逻辑航道 (跨域关联)</div>
+                <div class="legend-item"><div class="legend-dot bg-[#00BFFF]"></div> 戴森云碎片 (单篇文章)</div>
+            </div>
+        </div>
+        <div class="text-center w-full mb-4 pointer-events-auto">
+            <p class="text-sm text-gray-400 font-mono tracking-widest">肆意拖拽旋转星系 / 滚轮缩放 / 点击星体进行时空跃迁</p>
+        </div>
+    </div>
+
+    <!-- 悬浮的 AI 唤醒按钮 (缩小状态) -->
+    <div id="ai-fab" class="glass-panel absolute bottom-6 left-6 z-20 w-14 h-14 rounded-full flex items-center justify-center cursor-pointer transition-all hover:scale-110 hover:shadow-[0_0_20px_rgba(255,140,0,0.4)] group pointer-events-auto">
+        <svg class="text-[#00BFFF] group-hover:text-[#FF8C00] transition-colors" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        <span class="absolute top-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#00050A] rounded-full animate-pulse"></span>
+    </div>
+
+    <!-- 戴森主脑 AI 终端 (展开状态) -->
+    <div id="ai-terminal" class="glass-panel absolute bottom-6 left-6 z-20 w-[380px] p-5 flex-col hidden pointer-events-auto shadow-2xl">
+        <div class="text-xs text-[#FF8C00] font-mono border-b border-white/10 pb-2 flex justify-between items-center cursor-pointer select-none" id="terminal-header" title="点击缩小面板">
+            <div class="flex items-center gap-2">
+                <span>DYSON BRAIN UPLINK // LLM</span>
+                <span class="animate-pulse w-2 h-2 bg-green-400 rounded-full"></span>
+            </div>
+            <button class="text-gray-400 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="mt-4">
+            <div id="chat-history" class="mb-4 h-48">
+                <div class="chat-msg msg-ai text-gray-200">
+                    星系全景图已展开。看到那些行星了吗？点击它们，我的摄像机会为你锁定并跟随它们的公转轨迹。随时向我提问。
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="chat-input" class="w-full bg-black/50 border border-[#00BFFF]/40 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF8C00] transition-colors" placeholder="输入指令询问主脑...">
+                <button id="chat-send" class="bg-[#FF8C00]/20 hover:bg-[#FF8C00]/50 text-[#FF8C00] border border-[#FF8C00]/50 px-4 py-2 rounded transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文章阅读侧边栏 -->
+    <div id="article-panel" class="glass-panel p-6 md:p-8">
+        <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+            <div class="flex items-center gap-3">
+                <span id="article-tag" class="px-2 py-1 bg-[#00BFFF]/20 text-[#00BFFF] border border-[#00BFFF]/30 text-xs font-mono">NODE_EXTRACTED</span>
+                <span class="text-gray-400 text-xs font-mono tracking-widest hidden md:inline">COORD: <span id="article-coord">0.0.0</span></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="expand-btn" class="text-gray-400 hover:text-[#00BFFF] transition-colors cursor-pointer" title="全屏阅读模式">
+                    <svg id="expand-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                </button>
+                <button id="close-btn" class="text-gray-400 hover:text-[#FF8C00] transition-colors cursor-pointer" title="隐藏面板">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+        </div>
+        <h2 id="article-title" class="text-2xl font-bold mb-4 text-white tracking-wide">加载中...</h2>
+        <div id="article-content" class="text-gray-300 space-y-4 text-sm leading-relaxed">
+            <!-- 动态注入内容 -->
+        </div>
+    </div>
+
+    <script>
+        // === 1. 核心状态机 ===
+        let currentLevel = 'GALAXY'; 
+        let currentFocusObj = null;  
+        let currentParentStar = null;
+        let isTransitioning = false; 
+        let lastFocusPos = new THREE.Vector3(); 
+
+        // === 2. Three.js 基础渲染 ===
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x00050A, 0.0008); 
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 8000);
+        camera.position.set(0, 600, 1200);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const universeGroup = new THREE.Group();
+        scene.add(universeGroup);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 3000;
+        controls.minDistance = 20;
+
+        // === 3. 数据与星体构建 ===
+        const starSystemsData = [
+            { 
+                id: 'tech', name: "工程与架构", desc: "关于前端架构、系统设计与性能优化的硬核技术沉淀。", count: 280, pos: new THREE.Vector3(0, 0, 0), color: 0xFF4500,
+                planets: [
+                    { id: 'p_garden', name: "数字花园日志", desc: "记录构建 3D 交互博客的全过程。", count: 42, distance: 60, color: 0xFF8C00, speed: 0.008, tilt: 0.2 },
+                    { id: 'p_react', name: "React 源码重构", desc: "深入理解底层机制与渲染原理。", count: 15, distance: 90, color: 0x00FFFF, speed: 0.005, tilt: -0.1 }
+                ]
+            }, 
+            { 
+                id: 'phil', name: "哲学思辨", desc: "从虚无主义到存在主义的个人思想碎片。", count: 80, pos: new THREE.Vector3(350, 100, -200), color: 0x9370DB,
+                planets: [
+                    { id: 'p_exist', name: "存在主义笔记", desc: "萨特与加缪的读书感悟。", count: 25, distance: 50, color: 0xDA70D6, speed: 0.01, tilt: 0.5 }
+                ]
+            },
+            { id: 'acg', name: "二次元文化", desc: "神作补完计划与动画叙事学分析。", count: 150, pos: new THREE.Vector3(-300, -150, 250), color: 0x00FA9A, planets: [] },
+            { id: 'ai', name: "人工智能", desc: "LLM 时代的应用层探索与 Agent 架构实践。", count: 350, pos: new THREE.Vector3(250, -180, 400), color: 0x00BFFF, planets: [] },
+            { id: 'life', name: "生活碎片", desc: "随手拍、旅行记录与生活倒影。", count: 40, pos: new THREE.Vector3(-450, 200, -150), color: 0xFFD700, planets: [] }
+        ];
+
+        const lanesData = [['tech', 'ai'], ['tech', 'acg'], ['tech', 'phil'], ['phil', 'life'], ['ai', 'phil'], ['acg', 'life']];
+
+        const interactableObjects = []; 
+        const swarmNodes = []; 
+        const planetGroups = []; 
+        const dataPackets = []; 
+
+        starSystemsData.forEach(sys => {
+            const systemGroup = new THREE.Group();
+            systemGroup.position.copy(sys.pos);
+            
+            const baseSize = 8 + (sys.count / 15);
+            const starGeo = new THREE.SphereGeometry(baseSize, 32, 32);
+            const starMat = new THREE.MeshBasicMaterial({ color: sys.color });
+            const starMesh = new THREE.Mesh(starGeo, starMat);
+            starMesh.userData = { type: 'star', name: sys.name, desc: sys.desc, count: sys.count, pos: sys.pos };
+            systemGroup.add(starMesh);
+            interactableObjects.push(starMesh);
+
+            const glowGeo = new THREE.SphereGeometry(baseSize * 1.6, 32, 32);
+            const glowMat = new THREE.MeshBasicMaterial({ color: sys.color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
+            const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+            systemGroup.add(glowMesh);
+            sys.glowMesh = glowMesh;
+            sys.starMesh = starMesh;
+
+            if (sys.planets) {
+                sys.planets.forEach(planetData => {
+                    const orbitGroup = new THREE.Group();
+                    orbitGroup.rotation.x = planetData.tilt;
+                    
+                    const orbitLineGeo = new THREE.RingGeometry(planetData.distance - 0.5, planetData.distance + 0.5, 64);
+                    const orbitLineMat = new THREE.MeshBasicMaterial({ color: planetData.color, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+                    const orbitLine = new THREE.Mesh(orbitLineGeo, orbitLineMat);
+                    orbitLine.rotation.x = Math.PI / 2;
+                    orbitGroup.add(orbitLine);
+
+                    const pSize = 3 + (planetData.count / 20);
+                    const planetGeo = new THREE.SphereGeometry(pSize, 16, 16);
+                    const planetMat = new THREE.MeshBasicMaterial({ color: planetData.color });
+                    const planetMesh = new THREE.Mesh(planetGeo, planetMat);
+                    
+                    const ringInner = pSize + 1.5;
+                    const ringOuter = ringInner + (planetData.count / 10);
+                    const ringGeo = new THREE.RingGeometry(ringInner, ringOuter, 32);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: planetData.color, transparent: true, opacity: 0.5, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+                    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                    ringMesh.rotation.x = Math.PI / 2;
+                    planetMesh.add(ringMesh);
+
+                    planetMesh.userData = { 
+                        type: 'planet', name: planetData.name, desc: planetData.desc, count: planetData.count,
+                        parentSys: sys.name, parentStarMesh: starMesh,
+                        angle: Math.random() * Math.PI * 2, distance: planetData.distance, speed: planetData.speed
+                    };
+
+                    orbitGroup.add(planetMesh);
+                    systemGroup.add(orbitGroup);
+                    planetGroups.push(planetMesh);
+                    interactableObjects.push(planetMesh);
+                });
+            }
+
+            const swarmCount = Math.min(sys.count, 150);
+            const nodeGeo = new THREE.SphereGeometry(1.2, 8, 8);
+            const nodeMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+            const maxPlanetDist = sys.planets ? sys.planets.reduce((max, p) => Math.max(max, p.distance), 0) : 0;
+
+            for (let i = 0; i < swarmCount; i++) {
+                const node = new THREE.Mesh(nodeGeo, nodeMat);
+                const radius = Math.max(baseSize + 30, maxPlanetDist + 20) + Math.pow(Math.random(), 1.5) * 60;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                
+                node.position.set(radius * Math.sin(phi) * Math.cos(theta), radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi));
+                node.userData = { axis: new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize(), speed: (Math.random() * 0.01) + 0.005 };
+                systemGroup.add(node);
+                swarmNodes.push(node);
+            }
+            universeGroup.add(systemGroup);
+        });
+
+        lanesData.forEach(lane => {
+            const sourceSys = starSystemsData.find(s => s.id === lane[0]);
+            const targetSys = starSystemsData.find(s => s.id === lane[1]);
+            if(!sourceSys || !targetSys) return;
+
+            const midPoint = new THREE.Vector3().addVectors(sourceSys.pos, targetSys.pos).multiplyScalar(0.5);
+            midPoint.y += (Math.random() * 100 + 50);
+
+            const curve = new THREE.QuadraticBezierCurve3(sourceSys.pos, midPoint, targetSys.pos);
+            const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(50));
+            const material = new THREE.LineBasicMaterial({ color: 0x00BFFF, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending });
+            universeGroup.add(new THREE.Line(geometry, material));
+
+            for(let i=0; i < 2 + Math.floor(Math.random() * 3); i++) {
+                const packet = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
+                universeGroup.add(packet);
+                dataPackets.push({ mesh: packet, curve: curve, progress: Math.random(), speed: 0.001 + Math.random() * 0.002 });
+            }
+        });
+
+        const dustGeo = new THREE.BufferGeometry();
+        const dustCount = 10000;
+        const dustPos = new Float32Array(dustCount * 3), dustColors = new Float32Array(dustCount * 3);
+        const colorBlue = new THREE.Color(0x001144), colorPurple = new THREE.Color(0x220033);
+
+        for(let i=0; i<dustCount; i++) {
+            const r = 100 + Math.pow(Math.random(), 2) * 1200;
+            const theta = r * 0.005 + Math.random() * 15; 
+            dustPos[i*3] = Math.cos(theta) * r; dustPos[i*3+1] = (Math.random() - 0.5) * (r * 0.1); dustPos[i*3+2] = Math.sin(theta) * r;
+            const mixColor = colorBlue.clone().lerp(colorPurple, Math.random());
+            dustColors[i*3] = mixColor.r; dustColors[i*3+1] = mixColor.g; dustColors[i*3+2] = mixColor.b;
+        }
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+        dustGeo.setAttribute('color', new THREE.BufferAttribute(dustColors, 3));
+        universeGroup.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.5 })));
+
+        // === 4. 动画循环 ===
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            controls.update();
+
+            starSystemsData.forEach(sys => {
+                const scale = 1 + Math.sin(time * 3 + sys.pos.x) * 0.05;
+                sys.starMesh.scale.set(scale, scale, scale);
+                sys.glowMesh.scale.set(scale, scale, scale);
+            });
+
+            planetGroups.forEach(planet => {
+                planet.userData.angle += planet.userData.speed;
+                planet.position.x = Math.cos(planet.userData.angle) * planet.userData.distance;
+                planet.position.z = Math.sin(planet.userData.angle) * planet.userData.distance;
+                planet.rotation.z += 0.01;
+            });
+
+            swarmNodes.forEach(node => { node.position.applyAxisAngle(node.userData.axis, node.userData.speed); });
+            dataPackets.forEach(p => {
+                p.progress += p.speed;
+                if(p.progress > 1) p.progress = 0;
+                p.mesh.position.copy(p.curve.getPointAt(p.progress));
+            });
+
+            universeGroup.rotation.y += 0.0003; 
+
+            // 动态追踪
+            if (currentFocusObj && !isTransitioning) {
+                const currentObjPos = new THREE.Vector3();
+                currentFocusObj.getWorldPosition(currentObjPos);
+                const delta = new THREE.Vector3().subVectors(currentObjPos, lastFocusPos);
+                camera.position.add(delta);
+                controls.target.copy(currentObjPos);
+                lastFocusPos.copy(currentObjPos);
+
+                const distToTarget = camera.position.distanceTo(controls.target);
+                if (currentLevel === 'PLANET' && distToTarget > 200) goUpLevel();
+                else if (currentLevel === 'STAR' && distToTarget > 600) goUpLevel();
+            }
+            renderer.render(scene, camera);
+        }
+        window.onload = animate;
+
+        // === 5. 层级跳跃与飞行控制 ===
+        const articlePanel = document.getElementById('article-panel');
+        const backBtn = document.getElementById('back-btn');
+
+        function flyTo(targetObj, offset, duration) {
+            if (isTransitioning) return;
+            isTransitioning = true;
+            currentFocusObj = targetObj; 
+
+            const startCamPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            
+            gsap.to({ t: 0 }, {
+                t: 1, duration: duration, ease: "power2.inOut",
+                onUpdate: function() {
+                    const progress = this.targets()[0].t;
+                    let currentTargetPos = new THREE.Vector3();
+                    if (targetObj) targetObj.getWorldPosition(currentTargetPos);
+                    
+                    const desiredCamPos = currentTargetPos.clone().add(offset);
+                    camera.position.lerpVectors(startCamPos, desiredCamPos, progress);
+                    controls.target.lerpVectors(startTarget, currentTargetPos, progress);
+                    if (targetObj) lastFocusPos.copy(currentTargetPos);
+                },
+                onComplete: () => { isTransitioning = false; }
+            });
+        }
+
+        function goUpLevel() {
+            if (isTransitioning) return;
+            if (currentLevel === 'PLANET') {
+                if (currentParentStar) focusOnStar(currentParentStar);
+                else focusOnGalaxy();
+            } else if (currentLevel === 'STAR') {
+                focusOnGalaxy();
+            }
+        }
+        backBtn.addEventListener('click', goUpLevel);
+
+        function focusOnGalaxy() {
+            if (isTransitioning || currentLevel === 'GALAXY') return;
+            currentLevel = 'GALAXY';
+            backBtn.style.display = 'none';
+            articlePanel.classList.remove('active');
+            flyTo(null, new THREE.Vector3(0, 600, 1200), 2);
+        }
+
+        function focusOnStar(starMesh) {
+            if (isTransitioning) return;
+            currentLevel = 'STAR';
+            currentParentStar = starMesh;
+            backBtn.style.display = 'flex';
+            flyTo(starMesh, new THREE.Vector3(120, 100, 200), 2);
+            updateUIPanel(starMesh.userData);
+        }
+
+        function focusOnPlanet(planetMesh) {
+            if (isTransitioning) return;
+            currentLevel = 'PLANET';
+            currentParentStar = planetMesh.userData.parentStarMesh; 
+            backBtn.style.display = 'flex';
+            flyTo(planetMesh, new THREE.Vector3(30, 20, 50), 1.5);
+            updateUIPanel(planetMesh.userData);
+        }
+
+        function updateUIPanel(objData) {
+            document.getElementById('article-tag').textContent = objData.type === 'star' ? `STAR_SYSTEM // ${objData.name}` : `PLANET // ${objData.name}`;
+            document.getElementById('article-title').textContent = objData.type === 'star' ? `核心领域：${objData.name}` : `专题项目：${objData.name}`;
+            document.getElementById('article-coord').textContent = objData.type === 'star' ? `TOTAL_RECORDS: ${objData.count}` : `ARTICLES: ${objData.count}`;
+            
+            const content = document.getElementById('article-content');
+            if (objData.type === 'star') {
+                let planetsHtml = '';
+                const sysData = starSystemsData.find(s => s.name === objData.name);
+                if (sysData && sysData.planets && sysData.planets.length > 0) {
+                    planetsHtml = `<div class="mt-6 border-t border-white/10 pt-4"><p class="text-xs text-cyan-300 font-mono mb-3">ORBITING PLANETS (本星系引力网内的专题项目):</p><ul class="space-y-3">`;
+                    sysData.planets.forEach(p => {
+                        planetsHtml += `<li class="text-sm text-gray-300">🪐 <span class="text-[#FF8C00] font-bold">${p.name}</span> <br><span class="text-xs text-gray-500 ml-5">${p.desc}</span></li>`;
+                    });
+                    planetsHtml += `</ul></div>`;
+                }
+
+                content.innerHTML = `
+                    <p class="text-[#00BFFF] font-medium mb-3">${objData.desc || sysData.desc}</p>
+                    <p>欢迎来到 <b>${objData.name}</b> 星系中心。</p>
+                    ${planetsHtml}
+                    <div class="p-3 bg-black/60 border-l-4 border-[#FF8C00] font-mono text-[#FF8C00]/90 text-sm mt-6">
+                        > 试着点击围绕这颗恒星公转的【行星】。<br>> 向后滚动鼠标滚轮即可脱离星系引力。
+                    </div>`;
+            } else {
+                content.innerHTML = `
+                    <p class="text-[#00BFFF] font-medium mb-3">${objData.desc}</p>
+                    <p>你已成功登陆专题 <b>${objData.name}</b>。这颗行星围绕着 ${objData.parentSys} 领域运转。</p>
+                    <p>摄像机现已重力锁定，跟随行星同步公转！</p>
+                    <div class="mt-4 p-4 bg-black/40 rounded border border-white/10 markdown-preview">
+                        <h3 class="text-[#FF8C00] font-bold mb-3"># 最新档案</h3>
+                        <ul class="space-y-3 cursor-pointer text-sm font-mono text-[#00BFFF]">
+                            <li class="hover:text-white transition-colors">>> [DOC] 为什么选择 Astro 和 3D 银河系？</li>
+                            <li class="hover:text-white transition-colors">>> [DOC] Three.js 性能优化指南</li>
+                            <li class="hover:text-white transition-colors" onclick="alert('在完整版中，点击这里将跃迁到阅读页面！')">>> [DOC] 存在主义与赛博空间</li>
+                        </ul>
+                        <p class="mt-4 text-xs text-gray-500 italic text-center border-t border-white/10 pt-3">点击右上角「全屏」图标，进入沉浸式长文阅读模式。</p>
+                    </div>`;
+            }
+            
+            const expandIcon = document.getElementById('expand-icon');
+            articlePanel.classList.remove('expanded');
+            expandIcon.innerHTML = '<polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+            articlePanel.classList.add('active');
+        }
+
+        // === 6. 交互监听 ===
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Points.threshold = 5;
+        const mouse = new THREE.Vector2();
+        let pointerDownTime = 0, pointerDownPos = { x: 0, y: 0 };
+        
+        document.addEventListener('pointerdown', (e) => {
+            pointerDownPos.x = e.clientX; pointerDownPos.y = e.clientY; pointerDownTime = Date.now();
+        });
+
+        document.addEventListener('pointerup', (event) => {
+            const dist = Math.hypot(event.clientX - pointerDownPos.x, event.clientY - pointerDownPos.y);
+            const timeDiff = Date.now() - pointerDownTime;
+            
+            if(dist > 5 || timeDiff > 300 || event.target.closest('#article-panel') || event.target.closest('#ai-terminal') || event.target.closest('#ui-layer>div') || event.target.closest('#ai-fab')) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1; mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactableObjects, false);
+
+            if (intersects.length > 0) {
+                const targetObj = intersects[0].object;
+                const originalColor = targetObj.material.color.getHex();
+                targetObj.material.color.setHex(0xFFffff);
+                setTimeout(() => { targetObj.material.color.setHex(originalColor); }, 500);
+
+                if (targetObj.userData.type === 'star') focusOnStar(targetObj);
+                else if (targetObj.userData.type === 'planet') focusOnPlanet(targetObj);
+            }
+        });
+
+        document.getElementById('close-btn').addEventListener('click', () => { articlePanel.classList.remove('active'); });
+
+        const expandBtn = document.getElementById('expand-btn');
+        const expandIcon = document.getElementById('expand-icon');
+        expandBtn.addEventListener('click', () => {
+            articlePanel.classList.toggle('expanded');
+            if (articlePanel.classList.contains('expanded')) {
+                expandIcon.innerHTML = '<polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+            } else {
+                expandIcon.innerHTML = '<polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+            }
+        });
+
+        const aiFab = document.getElementById('ai-fab'), aiTerminal = document.getElementById('ai-terminal'), terminalHeader = document.getElementById('terminal-header');
+        aiFab.addEventListener('click', () => { aiFab.classList.add('hidden'); aiTerminal.classList.remove('hidden'); aiTerminal.style.display = 'flex'; });
+        terminalHeader.addEventListener('click', () => { aiTerminal.classList.add('hidden'); aiTerminal.style.display = 'none'; aiFab.classList.remove('hidden'); });
+
+        // === 7. LLM 控制逻辑 ===
+        const apiKey = ""; 
+        const chatInput = document.getElementById('chat-input'), chatSend = document.getElementById('chat-send'), chatHistory = document.getElementById('chat-history');
+
+        function appendMessage(text, isUser) {
+            const div = document.createElement('div'); div.className = `chat-msg ${isUser ? 'msg-user' : 'msg-ai'} text-gray-200`; div.textContent = text;
+            chatHistory.appendChild(div); chatHistory.scrollTop = chatHistory.scrollHeight; return div;
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error`);
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error; await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        async function handleSend() {
+            const text = chatInput.value.trim(); if (!text) return;
+            appendMessage(text, true); chatInput.value = '';
+            const loadingMsg = appendMessage("矩阵算力穿透中...", false);
+            if (!apiKey) { loadingMsg.textContent = "[系统警告] 缺失 API 密钥配置。"; return; }
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const systemPrompt = "你是戴森球主脑兼塔迪斯矩阵。语气融合科幻与哲学。如果用户想去某个恒星，你可以回应准备跃迁。";
+                const payload = { contents: [{ parts: [{ text: text }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+
+                const data = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                loadingMsg.textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "通讯受阻。";
+            } catch (error) { loadingMsg.textContent = "[系统故障] 主脑连接失败。"; }
+        }
+
+        chatSend.addEventListener('click', handleSend); chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+    </script>
+</body>
+</html>

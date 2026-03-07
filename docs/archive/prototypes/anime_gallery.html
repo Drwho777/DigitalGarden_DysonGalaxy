@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACG 展览馆 - 数字花园</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&display=swap');
+        
+        body { background-color: #030811; color: #E2E8F0; font-family: 'Space Grotesk', 'PingFang SC', sans-serif; overflow-x: hidden; }
+        .glass-nav { background: rgba(3, 8, 17, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0, 250, 154, 0.1); }
+        .planet-atmosphere { position: absolute; top: -20vh; left: 50%; transform: translateX(-50%); width: 80vw; height: 50vh; background: radial-gradient(ellipse at center, rgba(147, 112, 219, 0.15) 0%, rgba(0, 250, 154, 0.05) 40%, rgba(3, 8, 17, 0) 70%); z-index: -1; pointer-events: none; }
+
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(0, 250, 154, 0.5); border-radius: 3px; }
+        .tardis-btn:hover { box-shadow: 0 0 15px rgba(0, 250, 154, 0.4); border-color: rgba(0, 250, 154, 0.8); }
+
+        .tilt-card { transform-style: preserve-3d; transform: perspective(1000px); transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+        .tilt-card-inner { transform: translateZ(30px); }
+        .card-overlay { background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 100%); }
+        .neon-text { text-shadow: 0 0 10px rgba(0, 250, 154, 0.7), 0 0 20px rgba(0, 250, 154, 0.5); }
+    </style>
+</head>
+<body class="antialiased selection:bg-[#00FA9A] selection:text-black">
+
+    <div class="planet-atmosphere"></div>
+
+    <nav class="glass-nav fixed top-0 w-full z-50 transition-transform duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <button class="tardis-btn flex items-center gap-2 text-sm font-mono text-[#00FA9A] border border-[#00FA9A]/30 bg-[#00FA9A]/10 px-4 py-1.5 rounded-full transition-all duration-300 group" onclick="alert('返回 3D 星系枢纽！')">
+                <i data-lucide="rocket" class="w-4 h-4 group-hover:-translate-y-1 transition-transform"></i>
+                <span>TARDIS_RETURN // 跃迁回星系</span>
+            </button>
+            <div class="hidden md:flex items-center gap-4 text-xs font-mono text-gray-400">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#9370DB] animate-pulse"></span> 领域：ACG 文化与第九艺术</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="text-gray-400 hover:text-[#00FA9A] transition-colors"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-24">
+        <header class="mb-12 flex flex-col md:flex-row justify-between items-end gap-6">
+            <div>
+                <div class="flex items-center gap-3 mb-4 text-sm font-mono text-[#9370DB]">
+                    <span>VISUAL_DATABASE</span> <span class="text-white/20">—</span> <span>ARCHIVE_MODE</span>
+                </div>
+                <h1 class="text-4xl md:text-5xl font-bold tracking-tight mb-2">阿卡夏<span class="text-[#00FA9A] neon-text">幻影</span>展馆</h1>
+                <p class="text-gray-400 font-serif italic">"那些在光影中流转的情感，是我们存在于不同平行宇宙的证明。"</p>
+            </div>
+            <div class="flex flex-wrap gap-2 font-mono text-xs">
+                <button class="px-4 py-2 rounded-full bg-[#00FA9A] text-black font-bold">ALL // 全部</button>
+                <button class="px-4 py-2 rounded-full border border-white/20 hover:border-[#00FA9A] hover:text-[#00FA9A] transition-colors">CYBERPUNK // 赛博朋克</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-10">
+            <div class="tilt-card sm:col-span-2 group cursor-pointer h-80 rounded-2xl overflow-hidden relative border border-white/10 shadow-2xl">
+                <img src="https://images.unsplash.com/photo-1542831371-29b0f74f9713?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80" alt="Cyberpunk City" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out opacity-80 group-hover:opacity-100">
+                <div class="card-overlay absolute inset-0 opacity-80 group-hover:opacity-90 transition-opacity"></div>
+                <div class="tilt-card-inner absolute inset-0 p-6 flex flex-col justify-end">
+                    <div class="mb-auto flex justify-between items-start">
+                        <span class="bg-black/50 backdrop-blur-md text-[#00FA9A] border border-[#00FA9A]/30 px-3 py-1 rounded text-xs font-mono">10.0 / 10 满分神作</span>
+                        <i data-lucide="play-circle" class="w-8 h-8 text-white/50 group-hover:text-white transition-colors"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white mb-2">攻壳机动队</h2>
+                    <p class="text-gray-300 text-sm line-clamp-2">当网络覆盖全球，肉体可以被义体替换，灵魂（Ghost）的边界究竟在哪里？</p>
+                </div>
+            </div>
+
+            <div class="tilt-card group cursor-pointer h-80 rounded-2xl overflow-hidden relative border border-white/10 shadow-2xl">
+                <img src="https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Evangelion Vibe" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out opacity-70 group-hover:opacity-100">
+                <div class="card-overlay absolute inset-0 opacity-80"></div>
+                <div class="tilt-card-inner absolute inset-0 p-6 flex flex-col justify-end">
+                    <span class="bg-[#9370DB]/20 text-[#9370DB] border border-[#9370DB]/30 px-2 py-1 rounded text-xs font-mono w-max mb-3">MECHA / 哲学</span>
+                    <h2 class="text-xl font-bold text-white mb-1">新世纪福音战士</h2>
+                    <p class="text-gray-400 text-xs line-clamp-2">只要活下去，哪里都是天堂。AT力场与人类补完计划的终极思考。</p>
+                </div>
+            </div>
+
+            <div class="tilt-card sm:col-span-2 lg:col-span-1 group cursor-pointer h-80 rounded-2xl overflow-hidden relative border border-[#00FA9A]/30 shadow-[0_0_30px_rgba(0,250,154,0.1)]">
+                <div class="absolute inset-0 bg-[#00050A]" style="background-image: linear-gradient(rgba(0, 250, 154, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 250, 154, 0.1) 1px, transparent 1px); background-size: 20px 20px;"></div>
+                <div class="card-overlay absolute inset-0 opacity-90"></div>
+                <div class="tilt-card-inner absolute inset-0 p-6 flex flex-col items-center justify-center text-center">
+                    <i data-lucide="box" class="w-12 h-12 text-[#00FA9A] mb-4 animate-[spin_6s_linear_infinite]"></i>
+                    <h2 class="text-xl font-bold text-white mb-2">3D 模型陈列室</h2>
+                    <p class="text-gray-400 text-xs mb-4">进入 WebGL 渲染的虚拟手办展柜</p>
+                    <button class="px-4 py-2 bg-[#00FA9A] text-black text-xs font-bold font-mono rounded-full hover:bg-white transition-colors">INITIATE // 启动程序</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+        let lastScrollTop = 0; const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop && scrollTop > 100) navbar.style.transform = 'translateY(-100%)';
+            else navbar.style.transform = 'translateY(0)';
+            lastScrollTop = scrollTop;
+        });
+
+        const cards = document.querySelectorAll('.tilt-card');
+        cards.forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left, y = e.clientY - rect.top;
+                const centerX = rect.width / 2, centerY = rect.height / 2;
+                const rotateX = ((y - centerY) / centerY) * -10, rotateY = ((x - centerX) / centerX) * 10;
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+            });
+        });
+    </script>
+</body>
+</html>

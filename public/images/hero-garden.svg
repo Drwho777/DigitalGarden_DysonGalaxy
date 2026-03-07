@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07111D"/>
+      <stop offset="55%" stop-color="#00050A"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(360 250) rotate(90) scale(240 240)">
+      <stop offset="0%" stop-color="#FFB347"/>
+      <stop offset="100%" stop-color="#FF4500" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="360" cy="250" r="210" fill="url(#sun)"/>
+  <circle cx="360" cy="250" r="58" fill="#FF8C00"/>
+  <circle cx="860" cy="520" r="118" stroke="#00BFFF" stroke-opacity=".7" stroke-width="2"/>
+  <circle cx="860" cy="520" r="24" fill="#00BFFF"/>
+  <path d="M360 250C510 310 640 410 860 520" stroke="#00BFFF" stroke-opacity=".55" stroke-width="3"/>
+  <path d="M960 200H1390" stroke="#00BFFF" stroke-opacity=".45" stroke-width="2"/>
+  <path d="M960 240H1310" stroke="#FF8C00" stroke-opacity=".65" stroke-width="2"/>
+  <text x="960" y="170" fill="#F8FAFC" font-family="Space Grotesk, sans-serif" font-size="54" font-weight="700">WHY 3D GARDEN</text>
+  <text x="960" y="295" fill="#94A3B8" font-family="Space Grotesk, sans-serif" font-size="24" letter-spacing="4">STAR / PLANET / NODE</text>
+</svg>
