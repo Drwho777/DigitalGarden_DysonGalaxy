@@ -1,7 +1,7 @@
 {
   "name": "digitalgarden-dysongalaxy",
   "private": true,
-  "description": "Astro-based Digital Garden MVP with a Three.js galaxy hub, Markdown article routes, and a rule-based navigation agent.",
+  "description": "Astro-based 3D digital garden with a native Three.js galaxy hub, typed content collections, and Gemini-powered AI teleport navigation.",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
