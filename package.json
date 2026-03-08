@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.43",
-    "@astrojs/node": "^9.5.4",
+    "@astrojs/vercel": "^9.0.4",
     "@tailwindcss/vite": "^4.2.1",
     "ai": "^6.0.116",
     "astro": "^5.17.1",

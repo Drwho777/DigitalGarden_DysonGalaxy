@@ -1,8 +1,8 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { agentService } from '../../lib/agent/service';
 import type { AgentResponse } from '../../types/agent';
-
-export const prerender = false;
 
 interface InvalidAgentRequestResult {
   ok: false;
