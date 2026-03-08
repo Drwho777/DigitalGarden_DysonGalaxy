@@ -1,6 +1,6 @@
-﻿import type { APIRoute } from 'astro';
+import type { APIRoute } from 'astro';
 import { parseAgentRequest } from '../../lib/agent/request-validation';
-import { ruleBasedAgentService } from '../../lib/agent/runtime-service';
+import { agentService } from '../../lib/agent/service';
 import type { AgentResponse } from '../../types/agent';
 
 export const prerender = false;
@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonResponse(parsedRequest.response, parsedRequest.status);
   }
 
-  const result = await ruleBasedAgentService.respond({
+  const result = await agentService.respond({
     message: parsedRequest.message,
   });
 

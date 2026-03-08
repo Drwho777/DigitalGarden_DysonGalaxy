@@ -42,17 +42,53 @@ export type { SceneGalaxy } from './galaxy-scene-runtime';
 export type {
   FocusLevel,
   FocusTargetType,
-  SceneMountOptions,
   SceneVector3Tuple,
+  SceneMountOptions,
   SceneViewState,
 } from './galaxy-scene-view-state';
 
-type SceneCleanup = () => void;
+export interface GalaxySceneHandle {
+  dispose: () => void;
+}
+
+const NOOP_SCENE_HANDLE: GalaxySceneHandle = {
+  dispose() {},
+};
+
+function disposeSceneResources(scene: THREE.Scene) {
+  const disposedGeometries = new Set<THREE.BufferGeometry>();
+  const disposedMaterials = new Set<THREE.Material>();
+  const disposedTextures = new Set<THREE.Texture>();
+
+  scene.traverse((object) => {
+    if (
+      (object instanceof THREE.Mesh ||
+        object instanceof THREE.Line ||
+        object instanceof THREE.Points) &&
+      object.geometry instanceof THREE.BufferGeometry &&
+      !disposedGeometries.has(object.geometry)
+    ) {
+      disposedGeometries.add(object.geometry);
+      object.geometry.dispose();
+    }
+
+    if (
+      object instanceof THREE.Mesh ||
+      object instanceof THREE.Line ||
+      object instanceof THREE.Points
+    ) {
+      disposeMaterial(object.material, {
+        materials: disposedMaterials,
+        textures: disposedTextures,
+      });
+    }
+  });
+}
 
 export function initGalaxyScene(
   galaxy: SceneGalaxy,
   options: SceneMountOptions = {},
-): SceneCleanup {
+): GalaxySceneHandle {
   const { initialViewState = null, onViewStateChange } = options;
   const container = document.getElementById('canvas-container');
   const fallback = document.getElementById('webgl-fallback');
@@ -61,14 +97,14 @@ export function initGalaxyScene(
   const panelRenderer = createPanelRenderer();
 
   if (!(container instanceof HTMLElement)) {
-    return () => {};
+    return NOOP_SCENE_HANDLE;
   }
 
   const sceneContainer = container;
 
   if (!window.WebGLRenderingContext) {
     showFallback(sceneContainer, fallback);
-    return () => {};
+    return NOOP_SCENE_HANDLE;
   }
 
   let renderer: THREE.WebGLRenderer;
@@ -81,7 +117,7 @@ export function initGalaxyScene(
     });
   } catch {
     showFallback(sceneContainer, fallback);
-    return () => {};
+    return NOOP_SCENE_HANDLE;
   }
 
   fallback?.classList.add('hidden');
@@ -427,10 +463,10 @@ export function initGalaxyScene(
       return;
     }
 
-    if (detail.targetType === 'star') {
-      const record = starRecords.get(target.id);
-      if (record) {
-        focusOnStar(record);
+    const starRecord = starRecords.get(target.id);
+    if (detail.targetType === 'star' || (!detail.targetType && starRecord)) {
+      if (starRecord) {
+        focusOnStar(starRecord);
       }
       return;
     }
@@ -472,7 +508,7 @@ export function initGalaxyScene(
     renderer.render(scene, camera);
   }
 
-  function cleanup() {
+  function dispose() {
     if (destroyed) {
       return;
     }
@@ -493,20 +529,14 @@ export function initGalaxyScene(
     setBackButtonVisible(false);
     flashTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     flashTimeouts.clear();
-    scene.traverse((object) => {
-      if (
-        object instanceof THREE.Mesh ||
-        object instanceof THREE.Line ||
-        object instanceof THREE.Points
-      ) {
-        object.geometry.dispose();
-        disposeMaterial(object.material);
-      }
-    });
+    disposeSceneResources(scene);
+    scene.clear();
     controls.dispose();
     renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
     if (sceneContainer.isConnected) {
-      sceneContainer.innerHTML = '';
+      sceneContainer.replaceChildren();
     }
   }
 
@@ -519,7 +549,7 @@ export function initGalaxyScene(
 
   restoreViewState(initialViewState);
   animate();
-  return cleanup;
+  return { dispose };
 }
 
 

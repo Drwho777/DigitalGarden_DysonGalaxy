@@ -1,7 +1,7 @@
 export interface TeleportAction {
   type: 'TELEPORT';
-  targetType: 'star' | 'planet';
   targetId: string;
+  targetType?: 'star' | 'planet';
 }
 
 export interface AgentResponse {

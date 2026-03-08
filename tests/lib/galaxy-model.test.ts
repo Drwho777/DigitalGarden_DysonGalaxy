@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildGalaxyNodeStats } from '../../src/lib/galaxy-node-stats';
 import { buildArticleHref, hydrateGalaxy } from '../../src/lib/galaxy-model';
 import { fixtureNodes, fixtureStars } from '../fixtures/galaxy-fixtures';
 
@@ -15,6 +16,44 @@ describe('buildArticleHref', () => {
 });
 
 describe('hydrateGalaxy', () => {
+  it('builds explicit star and planet node counts from markdown entries', () => {
+    const stats = buildGalaxyNodeStats(fixtureStars, fixtureNodes);
+
+    expect(stats.starCountsById).toEqual({
+      tech: 2,
+      phil: 1,
+      acg: 0,
+    });
+    expect(stats.planetCountsById).toEqual({
+      p_garden: 2,
+      p_exist: 1,
+      p_gallery: 0,
+    });
+    expect(stats.articlesByPlanetId.p_garden.map((article) => article.slug)).toEqual([
+      'why-3d-galaxy',
+      'astro-3d-performance',
+    ]);
+  });
+
+  it('ignores nodes whose planet does not belong to the declared star', () => {
+    const stats = buildGalaxyNodeStats(fixtureStars, [
+      ...fixtureNodes,
+      {
+        ...fixtureNodes[0],
+        slug: 'invalid-pairing',
+        starId: 'tech',
+        planetId: 'p_exist',
+      },
+    ]);
+
+    expect(stats.starCountsById.tech).toBe(2);
+    expect(stats.starCountsById.phil).toBe(1);
+    expect(stats.planetCountsById.p_exist).toBe(1);
+    expect(
+      stats.articlesByPlanetId.p_exist.map((article) => article.slug),
+    ).toEqual(['existential-cyberspace']);
+  });
+
   it('attaches article metadata to the correct planet', () => {
     const galaxy = hydrateGalaxy(fixtureStars, fixtureNodes);
 

@@ -1,4 +1,5 @@
 import type { NodeFrontmatter, PlanetConfig, StarConfig } from '../types/galaxy';
+import { buildGalaxyNodeStats } from './galaxy-node-stats';
 
 export interface HydratedArticle extends NodeFrontmatter {
   href: string;
@@ -30,26 +31,26 @@ export function hydrateGalaxy(
   stars: StarConfig[],
   nodes: NodeFrontmatter[],
 ): HydratedGalaxy {
+  const { articlesByPlanetId, planetCountsById, starCountsById } =
+    buildGalaxyNodeStats(stars, nodes);
+
   const hydratedStars = stars.map((star) => {
     const hydratedPlanets = star.planets.map((planet) => {
-      const articles = nodes
-        .filter((node) => node.starId === star.id && node.planetId === planet.id)
-        .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
-        .map((node) => ({
+      const articles = (articlesByPlanetId[planet.id] ?? []).map((node) => ({
           ...node,
           href: buildArticleHref(node),
         }));
 
       return {
         ...planet,
-        nodeCount: articles.length,
+        nodeCount: planetCountsById[planet.id] ?? 0,
         articles,
       };
     });
 
     return {
       ...star,
-      totalNodes: hydratedPlanets.reduce((sum, planet) => sum + planet.nodeCount, 0),
+      totalNodes: starCountsById[star.id] ?? 0,
       planets: hydratedPlanets,
     };
   });

@@ -36,6 +36,19 @@ describe('findTeleportTarget', () => {
       }),
     ).toBeNull();
   });
+
+  it('infers the target type from targetId when targetType is missing', () => {
+    expect(
+      findTeleportTarget(fixtureHydratedGalaxy, {
+        targetId: 'acg',
+      }),
+    ).toMatchObject({ id: 'acg' });
+    expect(
+      findTeleportTarget(fixtureHydratedGalaxy, {
+        targetId: 'p_garden',
+      }),
+    ).toMatchObject({ id: 'p_garden' });
+  });
 });
 
 describe('createSceneViewState', () => {

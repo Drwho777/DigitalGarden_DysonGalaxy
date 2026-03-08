@@ -6,6 +6,19 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
+async function readAgentPayload(response: Response) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return null;
+  }
+
+  try {
+    return (await response.json()) as AgentResponse;
+  } catch {
+    return null;
+  }
+}
+
 export function mountAITerminal() {
   const fabElement = document.getElementById('ai-terminal-fab');
   const panelElement = document.getElementById('ai-terminal');
@@ -83,11 +96,15 @@ export function mountAITerminal() {
       signal: requestController.signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`Agent request failed with status ${response.status}`);
-    }
+    const payload = await readAgentPayload(response);
 
-    const payload = (await response.json()) as AgentResponse;
+    if (!response.ok) {
+      throw new Error(
+        typeof payload?.message === 'string' && payload.message.trim()
+          ? payload.message.trim()
+          : `Agent request failed with status ${response.status}`,
+      );
+    }
 
     if (destroyed) {
       return;

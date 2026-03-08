@@ -5,6 +5,11 @@ import type { HydratedGalaxy } from '../galaxy-model';
 export const WEBGL_FALLBACK_MESSAGE =
   '当前设备暂时无法初始化星系场景，已切换为静态模式。';
 
+interface MaterialDisposalState {
+  materials?: Set<THREE.Material>;
+  textures?: Set<THREE.Texture>;
+}
+
 interface FlashMeshMaterialOptions {
   onSettled?: (timeoutId: number) => void;
   shouldRestore?: () => boolean;
@@ -16,6 +21,20 @@ export function findTeleportTarget(
 ) {
   if (action.targetType === 'star') {
     return galaxy.stars.find((star) => star.id === action.targetId) ?? null;
+  }
+
+  if (action.targetType === 'planet') {
+    return (
+      galaxy.stars
+        .flatMap((star) => star.planets)
+        .find((planet) => planet.id === action.targetId) ?? null
+    );
+  }
+
+  const starTarget =
+    galaxy.stars.find((star) => star.id === action.targetId) ?? null;
+  if (starTarget) {
+    return starTarget;
   }
 
   return (
@@ -75,11 +94,30 @@ export function flashMeshMaterial(
   return timeoutId;
 }
 
-export function disposeMaterial(material: THREE.Material | THREE.Material[]) {
-  if (Array.isArray(material)) {
-    material.forEach((entry) => entry.dispose());
-    return;
-  }
+export function disposeMaterial(
+  material: THREE.Material | THREE.Material[],
+  state: MaterialDisposalState = {},
+) {
+  const materials = Array.isArray(material) ? material : [material];
+  const disposedMaterials = state.materials ?? new Set<THREE.Material>();
+  const disposedTextures = state.textures ?? new Set<THREE.Texture>();
 
-  material.dispose();
+  materials.forEach((entry) => {
+    if (disposedMaterials.has(entry)) {
+      return;
+    }
+
+    disposedMaterials.add(entry);
+
+    Object.values(entry).forEach((value) => {
+      if (!(value instanceof THREE.Texture) || disposedTextures.has(value)) {
+        return;
+      }
+
+      disposedTextures.add(value);
+      value.dispose();
+    });
+
+    entry.dispose();
+  });
 }

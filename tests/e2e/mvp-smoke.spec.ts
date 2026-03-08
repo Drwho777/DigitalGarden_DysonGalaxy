@@ -4,7 +4,7 @@ import { getGalleryExhibits } from '../../src/data/gallery';
 interface AgentResponse {
   action: {
     type: 'TELEPORT';
-    targetType: 'star' | 'planet';
+    targetType?: 'star' | 'planet';
     targetId: string;
   } | null;
   message: string;
@@ -13,12 +13,30 @@ interface AgentResponse {
 const GARDEN_PROMPT = '打开数字花园日志';
 const GARDEN_TITLE = '数字花园日志';
 const GARDEN_ARTICLE_PATH = '/read/tech/p_garden/why-3d-galaxy';
+const GARDEN_AGENT_RESPONSE: AgentResponse = {
+  message: '已锁定数字花园日志，准备切入近地轨道。',
+  action: {
+    type: 'TELEPORT',
+    targetType: 'planet',
+    targetId: 'p_garden',
+  },
+};
 const GALLERY_FEATURED_TITLE =
   getGalleryExhibits('p_gallery')[0]?.title ?? '攻壳机动队';
 
 async function openTerminal(page: Page) {
   await page.locator('#ai-terminal-fab').click();
   await expect(page.locator('#ai-terminal')).toBeVisible();
+}
+
+async function mockGardenAgentRoute(page: Page) {
+  await page.route('**/api/agent', async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(GARDEN_AGENT_RESPONSE),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
 }
 
 async function submitGardenPrompt(page: Page) {
@@ -35,15 +53,33 @@ async function submitGardenPrompt(page: Page) {
   const agentResponse = await agentResponsePromise;
   const payload = (await agentResponse.json()) as AgentResponse;
 
-  expect(payload.action).toMatchObject({
-    type: 'TELEPORT',
-    targetType: 'planet',
-    targetId: 'p_garden',
-  });
+  expect(payload.action).toMatchObject(GARDEN_AGENT_RESPONSE.action ?? {});
   await expect(page.locator('#info-panel')).toBeVisible();
   await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
 
   return payload;
+}
+
+function trackBrowserErrors(page: Page) {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+
+  return {
+    assertClean() {
+      expect(pageErrors).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+    },
+  };
 }
 
 test.describe('Digital Garden MVP smoke', () => {
@@ -61,6 +97,7 @@ test.describe('Digital Garden MVP smoke', () => {
       }
     });
 
+    await mockGardenAgentRoute(page);
     await page.goto('/');
 
     await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
@@ -73,6 +110,7 @@ test.describe('Digital Garden MVP smoke', () => {
   test('home to article to home restores the focused hub state after ClientRouter swap', async ({
     page,
   }) => {
+    await mockGardenAgentRoute(page);
     await page.goto('/');
 
     await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
@@ -93,6 +131,39 @@ test.describe('Digital Garden MVP smoke', () => {
 
     const payload = await submitGardenPrompt(page);
     expect(payload.action?.targetId).toBe('p_garden');
+  });
+
+  test('browser back and forward preserve a single scene canvas without WebGL errors', async ({
+    page,
+  }) => {
+    const browserErrors = trackBrowserErrors(page);
+
+    await mockGardenAgentRoute(page);
+    await page.goto('/');
+    await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
+
+    await submitGardenPrompt(page);
+    await page.locator(`#info-panel a[href="${GARDEN_ARTICLE_PATH}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`${GARDEN_ARTICLE_PATH}$`));
+
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+      await page.goBack();
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
+      await expect(page.locator('#webgl-fallback')).toBeHidden();
+      await expect(page.locator('#info-panel')).toBeVisible();
+
+      await page.goForward();
+      await expect(page).toHaveURL(new RegExp(`${GARDEN_ARTICLE_PATH}$`));
+      await expect(page.locator('#reader-navbar')).toBeVisible();
+    }
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
+    await expect(page.locator('#webgl-fallback')).toBeHidden();
+
+    browserErrors.assertClean();
   });
 
   test('AI terminal surfaces validation errors from /api/agent', async ({ page }) => {
@@ -122,9 +193,7 @@ test.describe('Digital Garden MVP smoke', () => {
 
     expect(agentResponse.status()).toBe(422);
     await expect(page.locator('#ai-terminal-history')).toContainText(GARDEN_PROMPT);
-    await expect(page.locator('#ai-terminal-history')).toContainText(
-      '[system error] Agent request failed with status 422',
-    );
+    await expect(page.locator('#ai-terminal-history')).toContainText('`message` is required.');
     await expect(page.locator('#ai-terminal-input')).toBeEnabled();
     await expect(page.locator('#ai-terminal-send')).toBeEnabled();
     await expect(page.locator('#info-panel')).toBeHidden();

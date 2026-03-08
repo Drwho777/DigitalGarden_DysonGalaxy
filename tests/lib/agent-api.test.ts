@@ -1,9 +1,9 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const respondMock = vi.fn();
 
-vi.mock('../../src/lib/agent/runtime-service', () => ({
-  ruleBasedAgentService: {
+vi.mock('../../src/lib/agent/service', () => ({
+  agentService: {
     respond: respondMock,
   },
 }));

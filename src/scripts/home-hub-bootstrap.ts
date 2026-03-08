@@ -1,21 +1,21 @@
 import { mountAITerminal } from '../lib/browser/ai-terminal';
 import type {
+  GalaxySceneHandle,
   SceneGalaxy,
   SceneViewState,
 } from '../lib/browser/galaxy-scene';
 
 type Cleanup = () => void;
 
-let sceneCleanup: Cleanup | undefined;
-let terminalCleanup: Cleanup | undefined;
-let mountSequence = 0;
-let lastSceneViewState: SceneViewState | null = null;
+interface HomeHubBootstrapState {
+  mount: () => Promise<void>;
+  unmount: () => void;
+}
 
-function clearMountedHub() {
-  sceneCleanup?.();
-  sceneCleanup = undefined;
-  terminalCleanup?.();
-  terminalCleanup = undefined;
+declare global {
+  interface Window {
+    __DG_HOME_HUB_BOOTSTRAP__?: HomeHubBootstrapState;
+  }
 }
 
 function getSceneDataElement() {
@@ -37,65 +37,84 @@ function showHubFallback(message: string) {
   }
 }
 
-async function mountHomeHub() {
-  const dataElement = getSceneDataElement();
-  if (!dataElement?.textContent) {
-    return;
+function createHomeHubBootstrapState(): HomeHubBootstrapState {
+  let sceneHandle: GalaxySceneHandle | undefined;
+  let terminalCleanup: Cleanup | undefined;
+  let mountSequence = 0;
+  let lastSceneViewState: SceneViewState | null = null;
+
+  function clearMountedHub() {
+    sceneHandle?.dispose();
+    sceneHandle = undefined;
+    terminalCleanup?.();
+    terminalCleanup = undefined;
   }
 
-  const currentSequence = ++mountSequence;
-  clearMountedHub();
-
-  let galaxy: SceneGalaxy;
-
-  try {
-    galaxy = JSON.parse(dataElement.textContent) as SceneGalaxy;
-  } catch (error) {
-    showHubFallback(
-      error instanceof Error
-        ? `[scene bootstrap failed] ${error.message}`
-        : '[scene bootstrap failed] invalid scene payload',
-    );
-    return;
-  }
-
-  terminalCleanup = mountAITerminal();
-
-  try {
-    const { initGalaxyScene } = await import('../lib/browser/galaxy-scene');
-
-    if (currentSequence !== mountSequence) {
+  async function mount() {
+    const dataElement = getSceneDataElement();
+    if (!dataElement?.textContent) {
       return;
     }
 
-    sceneCleanup = initGalaxyScene(galaxy, {
-      initialViewState: lastSceneViewState,
-      onViewStateChange(nextViewState) {
-        lastSceneViewState = nextViewState;
-      },
-    });
-  } catch (error) {
-    if (currentSequence !== mountSequence) {
+    const currentSequence = ++mountSequence;
+    clearMountedHub();
+
+    let galaxy: SceneGalaxy;
+
+    try {
+      galaxy = JSON.parse(dataElement.textContent) as SceneGalaxy;
+    } catch (error) {
+      showHubFallback(
+        error instanceof Error
+          ? `[scene bootstrap failed] ${error.message}`
+          : '[scene bootstrap failed] invalid scene payload',
+      );
       return;
     }
 
-    showHubFallback(
-      error instanceof Error
-        ? `[scene bootstrap failed] ${error.message}`
-        : '[scene bootstrap failed] unable to load scene runtime',
-    );
-    console.error('Failed to mount galaxy scene', error);
+    terminalCleanup = mountAITerminal();
+
+    try {
+      const { initGalaxyScene } = await import('../lib/browser/galaxy-scene');
+
+      if (currentSequence !== mountSequence) {
+        return;
+      }
+
+      sceneHandle = initGalaxyScene(galaxy, {
+        initialViewState: lastSceneViewState,
+        onViewStateChange(nextViewState) {
+          lastSceneViewState = nextViewState;
+        },
+      });
+    } catch (error) {
+      if (currentSequence !== mountSequence) {
+        return;
+      }
+
+      showHubFallback(
+        error instanceof Error
+          ? `[scene bootstrap failed] ${error.message}`
+          : '[scene bootstrap failed] unable to load scene runtime',
+      );
+      console.error('Failed to mount galaxy scene', error);
+    }
   }
+
+  function unmount() {
+    mountSequence += 1;
+    clearMountedHub();
+  }
+
+  document.addEventListener('astro:before-swap', unmount);
+  document.addEventListener('astro:page-load', () => {
+    void mount();
+  });
+
+  return {
+    mount,
+    unmount,
+  };
 }
 
-function unmountHomeHub() {
-  mountSequence += 1;
-  clearMountedHub();
-}
-
-document.addEventListener('astro:before-swap', unmountHomeHub);
-document.addEventListener('astro:page-load', () => {
-  void mountHomeHub();
-});
-
-void mountHomeHub();
+window.__DG_HOME_HUB_BOOTSTRAP__ ??= createHomeHubBootstrapState();
