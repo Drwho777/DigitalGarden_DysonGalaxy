@@ -325,12 +325,9 @@ export function initGalaxyScene(
     offset: THREE.Vector3,
     duration: number,
   ) {
-    if (isTransitioning) {
-      return;
-    }
-
-    isTransitioning = true;
     activeFlyToTween?.kill();
+    activeFlyToTween = null;
+    isTransitioning = true;
     activeFlyToTween = flyToTarget({
       camera,
       controls,

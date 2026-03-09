@@ -12,6 +12,7 @@ interface AgentResponse {
 
 const GARDEN_PROMPT = '打开数字花园日志';
 const GARDEN_TITLE = '数字花园日志';
+const TECH_STAR_TITLE = '工程与架构';
 const GARDEN_ARTICLE_PATH = '/read/tech/p_garden/why-3d-galaxy';
 const GARDEN_AGENT_RESPONSE: AgentResponse = {
   message: '已锁定数字花园日志，准备切入近地轨道。',
@@ -21,6 +22,11 @@ const GARDEN_AGENT_RESPONSE: AgentResponse = {
     targetId: 'p_garden',
   },
 };
+const TECH_STAR_ACTION = {
+  type: 'TELEPORT',
+  targetId: 'tech',
+  targetType: 'star',
+} as const;
 const GALLERY_FEATURED_TITLE =
   getGalleryExhibits('p_gallery')[0]?.title ?? '攻壳机动队';
 
@@ -58,6 +64,15 @@ async function submitGardenPrompt(page: Page) {
   await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
 
   return payload;
+}
+
+async function focusTechStar(page: Page) {
+  await page.evaluate((detail) => {
+    window.dispatchEvent(new CustomEvent('galaxy:action', { detail }));
+  }, TECH_STAR_ACTION);
+
+  await expect(page.locator('#info-panel')).toBeVisible();
+  await expect(page.locator('#info-panel-title')).toHaveText(TECH_STAR_TITLE);
 }
 
 function trackBrowserErrors(page: Page) {
@@ -131,6 +146,40 @@ test.describe('Digital Garden MVP smoke', () => {
 
     const payload = await submitGardenPrompt(page);
     expect(payload.action?.targetId).toBe('p_garden');
+  });
+
+  test('star panel topic entries can focus the matching planet', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
+    await focusTechStar(page);
+
+    await page
+      .locator('#info-panel-content button')
+      .filter({ hasText: GARDEN_TITLE })
+      .click();
+
+    await expect(page.locator('#info-panel-tag')).toHaveText('PLANET // P_GARDEN');
+    await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
+  });
+
+  test('star panel topic click stays on the planet even if the star fly-in is still running', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    await expect(page.locator('#canvas-container canvas')).toHaveCount(1);
+    await focusTechStar(page);
+
+    await page
+      .locator('#info-panel-content button')
+      .filter({ hasText: GARDEN_TITLE })
+      .click();
+
+    await expect(page.locator('#info-panel-tag')).toHaveText('PLANET // P_GARDEN');
+    await page.waitForTimeout(2200);
+    await expect(page.locator('#info-panel-tag')).toHaveText('PLANET // P_GARDEN');
+    await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
   });
 
   test('browser back and forward preserve a single scene canvas without WebGL errors', async ({

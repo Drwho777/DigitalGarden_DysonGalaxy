@@ -1,4 +1,5 @@
-﻿import type { HydratedPlanet, HydratedStar } from '../galaxy-model';
+import type { TeleportAction } from '../../types/agent';
+import type { HydratedPlanet, HydratedStar } from '../galaxy-model';
 
 interface PanelRenderOptions {
   open?: boolean;
@@ -33,6 +34,14 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
   return element;
 }
 
+function dispatchTeleportAction(action: TeleportAction) {
+  window.dispatchEvent(
+    new CustomEvent<TeleportAction>('galaxy:action', {
+      detail: action,
+    }),
+  );
+}
+
 function createPanelCard(
   label: string,
   description: string,
@@ -54,9 +63,13 @@ function createPanelCard(
 }
 
 function createPlanetSummaryItem(planet: HydratedPlanet) {
-  const item = createElement('li', {
-    className: 'rounded-2xl border border-white/10 bg-black/20 p-4',
+  const item = createElement('li');
+  const button = createElement('button', {
+    className:
+      'group w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-left transition-colors hover:border-[var(--accent-orange)]/40 hover:bg-[rgba(255,140,0,0.08)] focus-visible:border-[var(--accent-orange)]/50 focus-visible:bg-[rgba(255,140,0,0.1)] focus-visible:outline-none',
   });
+  button.type = 'button';
+
   const header = createElement('div', {
     className: 'flex items-center justify-between gap-3',
   });
@@ -77,9 +90,23 @@ function createPlanetSummaryItem(planet: HydratedPlanet) {
     className: 'mt-2 text-sm leading-6 text-slate-400',
     textContent: planet.description,
   });
+  const action = createElement('span', {
+    className:
+      'mt-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-slate-500 transition-colors group-hover:text-[var(--accent-orange)] group-focus-visible:text-[var(--accent-orange)]',
+    textContent: '切换至行星轨道',
+  });
+
+  button.addEventListener('click', () => {
+    dispatchTeleportAction({
+      type: 'TELEPORT',
+      targetId: planet.id,
+      targetType: 'planet',
+    });
+  });
 
   header.append(type, count);
-  item.append(header, title, description);
+  button.append(header, title, description, action);
+  item.append(button);
   return item;
 }
 
@@ -168,9 +195,12 @@ export function createPanelRenderer() {
     );
     const planetsSection = createElement('div');
     const sectionTitle = createElement('p', {
-      className:
-        'mb-3 font-mono text-xs uppercase tracking-[0.3em] text-slate-500',
+      className: 'font-mono text-xs uppercase tracking-[0.3em] text-slate-500',
       textContent: 'Orbiting Planets',
+    });
+    const sectionHint = createElement('p', {
+      className: 'mb-3 mt-2 text-xs leading-5 text-slate-500',
+      textContent: '点击具体专题入口，即可切换到对应行星轨道。',
     });
     const list = createElement('ul', { className: 'space-y-3' });
 
@@ -186,7 +216,7 @@ export function createPanelRenderer() {
       );
     }
 
-    planetsSection.append(sectionTitle, list);
+    planetsSection.append(sectionTitle, sectionHint, list);
     content.replaceChildren(systemBrief, planetsSection);
     syncPanelVisibility(options.open);
   }
