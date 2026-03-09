@@ -1,14 +1,19 @@
-import { generateText, stepCountIs, tool, type LanguageModel } from 'ai';
+import { generateText, stepCountIs, tool } from 'ai';
 import { z } from 'zod';
 import type { AgentResponse, TeleportAction } from '../../types/agent';
-import { AIConfigError } from '../ai/config';
-import { resolveLanguageModel } from '../ai/provider';
+import { AIConfigError, readAIConfigSummary } from '../ai/config';
+import {
+  resolveLanguageModelContext,
+  type ResolvedLanguageModel,
+} from '../ai/provider';
 import type { HydratedGalaxy, HydratedPlanet, HydratedStar } from '../galaxy-model';
+import { logAgentError } from '../observability/agent-log';
 
 export type AgentGalaxy = Pick<HydratedGalaxy, 'stars'>;
 
 export interface AgentServiceInput {
   message: string;
+  requestId?: string;
 }
 
 export interface AgentServiceResult {
@@ -231,17 +236,17 @@ function isAIConfigError(error: unknown): error is AIConfigError {
 
 export function createAgentService(options: {
   loadGalaxy?: () => Promise<AgentGalaxy>;
-  resolveModel?: () => LanguageModel;
+  resolveModel?: () => ResolvedLanguageModel;
   textGenerator?: typeof generateText;
 } = {}): AgentService {
   const {
     loadGalaxy = loadGalaxyData,
-    resolveModel = resolveLanguageModel,
+    resolveModel = resolveLanguageModelContext,
     textGenerator = generateText,
   } = options;
 
   return {
-    async respond({ message }) {
+    async respond({ message, requestId }) {
       const normalizedMessage = normalizeAgentMessage(message);
       if (!normalizedMessage) {
         return {
@@ -250,11 +255,30 @@ export function createAgentService(options: {
         };
       }
 
-      let model: LanguageModel;
+      const configSummary = (() => {
+        try {
+          return readAIConfigSummary();
+        } catch {
+          return {
+            model: undefined,
+            provider: undefined,
+          };
+        }
+      })();
+      let modelContext: ResolvedLanguageModel;
 
       try {
-        model = resolveModel();
+        modelContext = resolveModel();
       } catch (error) {
+        if (requestId) {
+          logAgentError(error, {
+            model: configSummary.model,
+            provider: configSummary.provider,
+            requestId,
+            status: isAIConfigError(error) ? 503 : 500,
+          });
+        }
+
         if (isAIConfigError(error)) {
           return {
             status: 503,
@@ -282,7 +306,7 @@ export function createAgentService(options: {
 
       try {
         const result = await textGenerator({
-          model,
+          model: modelContext.model,
           prompt: normalizedMessage,
           stopWhen: stepCountIs(2),
           system: createSystemPrompt(galaxy),
@@ -322,6 +346,15 @@ export function createAgentService(options: {
           },
         };
       } catch (error) {
+        if (requestId) {
+          logAgentError(error, {
+            model: modelContext.config.model,
+            provider: modelContext.config.provider,
+            requestId,
+            status: 500,
+          });
+        }
+
         return {
           status: 500,
           response: {

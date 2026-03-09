@@ -3,11 +3,28 @@ import { AIConfigError } from '../../src/lib/ai/config';
 import { fixtureHydratedGalaxy } from '../fixtures/galaxy-fixtures';
 
 const generateTextMock = vi.fn();
+const logAgentErrorMock = vi.fn();
+
+function createCloudflareModelContext(model: any) {
+  return {
+    config: {
+      accountId: 'account-123',
+      apiKey: 'cloudflare-key',
+      model: '@cf/zai-org/glm-4.7-flash',
+      provider: 'cloudflare' as const,
+    },
+    model,
+  };
+}
 
 vi.mock('ai', () => ({
   generateText: generateTextMock,
   stepCountIs: (count: number) => ({ count, type: 'step-count' }),
   tool: <T>(definition: T) => definition,
+}));
+
+vi.mock('../../src/lib/observability/agent-log', () => ({
+  logAgentError: logAgentErrorMock,
 }));
 
 async function loadServiceModule() {
@@ -18,6 +35,7 @@ async function loadServiceModule() {
 describe('createAgentService', () => {
   beforeEach(() => {
     generateTextMock.mockReset();
+    logAgentErrorMock.mockReset();
   });
 
   it('returns 422 for empty messages without loading galaxy or resolving a model', async () => {
@@ -42,7 +60,7 @@ describe('createAgentService', () => {
 
   it('returns a TELEPORT action when the model calls teleport_engine', async () => {
     const mockModel = { id: 'mock-model:agent' } as any;
-    const resolveModel = vi.fn(() => mockModel);
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
 
     generateTextMock.mockReset();
     generateTextMock.mockImplementation(async (options: any) => {
@@ -86,6 +104,7 @@ describe('createAgentService', () => {
         },
       },
     });
+    expect(logAgentErrorMock).not.toHaveBeenCalled();
   });
 
   it('keeps action null when the model responds without a tool call', async () => {
@@ -99,7 +118,9 @@ describe('createAgentService', () => {
     const { createAgentService } = await loadServiceModule();
     const service = createAgentService({
       loadGalaxy: vi.fn().mockResolvedValue(fixtureHydratedGalaxy),
-      resolveModel: vi.fn(() => ({ id: 'mock-model:agent' } as any)),
+      resolveModel: vi.fn(() =>
+        createCloudflareModelContext({ id: 'mock-model:agent' } as any),
+      ),
     });
 
     const result = await service.respond({ message: '今天天气怎么样' });
@@ -134,6 +155,33 @@ describe('createAgentService', () => {
     });
     expect(loadGalaxy).not.toHaveBeenCalled();
     expect(generateTextMock).not.toHaveBeenCalled();
+    expect(logAgentErrorMock).not.toHaveBeenCalled();
+  });
+
+  it('logs a config error with sanitized provider metadata when requestId is provided', async () => {
+    const { createAgentService } = await loadServiceModule();
+    const service = createAgentService({
+      resolveModel: vi.fn(() => {
+        throw new AIConfigError(
+          'AI_API_KEY is not configured for provider "cloudflare".',
+        );
+      }),
+    });
+
+    await service.respond({
+      message: '带我去工程星系',
+      requestId: 'req-test-2',
+    });
+
+    expect(logAgentErrorMock).toHaveBeenCalledWith(
+      expect.any(AIConfigError),
+      expect.objectContaining({
+        model: 'gemini-2.5-flash',
+        provider: 'google',
+        requestId: 'req-test-2',
+        status: 503,
+      }),
+    );
   });
 
   it('keeps action null when the model calls teleport_engine with an unknown target', async () => {
@@ -156,7 +204,9 @@ describe('createAgentService', () => {
     const { createAgentService } = await loadServiceModule();
     const service = createAgentService({
       loadGalaxy: vi.fn().mockResolvedValue(fixtureHydratedGalaxy),
-      resolveModel: vi.fn(() => ({ id: 'mock-model:agent' } as any)),
+      resolveModel: vi.fn(() =>
+        createCloudflareModelContext({ id: 'mock-model:agent' } as any),
+      ),
     });
 
     const result = await service.respond({ message: '带我去不存在的星球' });

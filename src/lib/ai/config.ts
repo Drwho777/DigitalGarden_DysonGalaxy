@@ -17,6 +17,11 @@ export type AIProviderConfig = GoogleAIConfig | CloudflareAIConfig;
 
 export type RuntimeEnv = Record<string, string | undefined>;
 
+export interface AIConfigSummary {
+  model?: string;
+  provider: AIProviderId;
+}
+
 export const DEFAULT_AI_PROVIDER: AIProviderId = 'google';
 export const DEFAULT_GOOGLE_MODEL = 'gemini-2.5-flash';
 
@@ -94,6 +99,25 @@ function resolveModel(provider: AIProviderId, env: RuntimeEnv): string {
   }
 
   throw new AIConfigError(`AI_MODEL is not configured for provider "${provider}".`);
+}
+
+export function readAIConfigSummary(
+  env: RuntimeEnv = readRuntimeEnv(),
+): AIConfigSummary {
+  const provider = resolveProvider(env);
+  const configuredModel = normalizeEnvValue(env.AI_MODEL);
+
+  if (configuredModel) {
+    return {
+      model: configuredModel,
+      provider,
+    };
+  }
+
+  return {
+    model: provider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined,
+    provider,
+  };
 }
 
 export function resolveAIConfig(env: RuntimeEnv = readRuntimeEnv()): AIProviderConfig {

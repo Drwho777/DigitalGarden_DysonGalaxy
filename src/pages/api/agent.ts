@@ -2,6 +2,13 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { agentService } from '../../lib/agent/service';
+import { readAIConfigSummary } from '../../lib/ai/config';
+import { shouldRequireTeleportTool } from '../../lib/agent/service';
+import {
+  createAgentRequestId,
+  logAgentRequest,
+  logAgentResponse,
+} from '../../lib/observability/agent-log';
 import type { AgentResponse } from '../../types/agent';
 
 interface InvalidAgentRequestResult {
@@ -69,13 +76,59 @@ async function parseAgentRequest(request: Request): Promise<AgentRequestResult> 
 }
 
 export const POST: APIRoute = async ({ request }) => {
+  const requestId = createAgentRequestId();
+  const startedAt = Date.now();
+  const configSummary = (() => {
+    try {
+      return readAIConfigSummary();
+    } catch {
+      return {
+        model: undefined,
+        provider: undefined,
+      };
+    }
+  })();
   const parsedRequest = await parseAgentRequest(request);
   if (!parsedRequest.ok) {
+    logAgentResponse({
+      isNavigationIntent: false,
+      latencyMs: Date.now() - startedAt,
+      messageLength: 0,
+      model: configSummary.model,
+      provider: configSummary.provider,
+      requestId,
+      status: parsedRequest.status,
+    });
+
     return jsonResponse(parsedRequest.response, parsedRequest.status);
   }
 
+  const normalizedMessage = parsedRequest.message.trim();
+  const isNavigationIntent = shouldRequireTeleportTool(normalizedMessage);
+
+  logAgentRequest({
+    isNavigationIntent,
+    messageLength: normalizedMessage.length,
+    model: configSummary.model,
+    provider: configSummary.provider,
+    requestId,
+  });
+
   const result = await agentService.respond({
     message: parsedRequest.message,
+    requestId,
+  });
+
+  logAgentResponse({
+    actionTargetId: result.response.action?.targetId,
+    actionType: result.response.action?.type,
+    isNavigationIntent,
+    latencyMs: Date.now() - startedAt,
+    messageLength: normalizedMessage.length,
+    model: configSummary.model,
+    provider: configSummary.provider,
+    requestId,
+    status: result.status,
   });
 
   return jsonResponse(result.response, result.status);

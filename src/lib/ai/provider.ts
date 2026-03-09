@@ -3,6 +3,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { resolveAIConfig, type AIProviderConfig } from './config';
 
+export interface ResolvedLanguageModel {
+  config: AIProviderConfig;
+  model: LanguageModel;
+}
+
 export const CLOUDFLARE_OPENAI_COMPAT_BASE_URL = (accountId: string) =>
   `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
 
@@ -34,4 +39,13 @@ export function createLanguageModel(
 
 export function resolveLanguageModel(): LanguageModel {
   return createLanguageModel(resolveAIConfig());
+}
+
+export function resolveLanguageModelContext(): ResolvedLanguageModel {
+  const config = resolveAIConfig();
+
+  return {
+    config,
+    model: createLanguageModel(config),
+  };
 }
