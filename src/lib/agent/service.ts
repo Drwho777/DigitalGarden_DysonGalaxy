@@ -1,7 +1,8 @@
-import { generateText, stepCountIs, tool } from 'ai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { generateText, stepCountIs, tool, type LanguageModel } from 'ai';
 import { z } from 'zod';
 import type { AgentResponse, TeleportAction } from '../../types/agent';
+import { AIConfigError } from '../ai/config';
+import { resolveLanguageModel } from '../ai/provider';
 import type { HydratedGalaxy, HydratedPlanet, HydratedStar } from '../galaxy-model';
 
 export type AgentGalaxy = Pick<HydratedGalaxy, 'stars'>;
@@ -21,12 +22,6 @@ export interface AgentService {
 
 const EMPTY_MESSAGE_RESPONSE: AgentResponse = {
   message: '`message` is required.',
-  action: null,
-};
-
-const MISSING_API_KEY_RESPONSE: AgentResponse = {
-  message:
-    '[agent unavailable] GOOGLE_GENERATIVE_AI_API_KEY is not configured.',
   action: null,
 };
 
@@ -60,33 +55,9 @@ const NAVIGATION_INTENT_PATTERNS = [
   /visit/i,
 ];
 
-function normalizeApiKey(apiKey: string | undefined) {
-  const trimmedApiKey = apiKey?.trim();
-  return trimmedApiKey ? trimmedApiKey : undefined;
-}
-
 async function loadGalaxyData() {
   const { getGalaxyData } = await import('../galaxy-data');
   return getGalaxyData();
-}
-
-function readGoogleApiKeyFromRuntime() {
-  const importMetaEnv = (
-    import.meta as ImportMeta & {
-      env?: Record<string, string | undefined>;
-    }
-  ).env;
-
-  const runtimeGlobal = globalThis as typeof globalThis & {
-    process?: {
-      env?: Record<string, string | undefined>;
-    };
-  };
-
-  return (
-    importMetaEnv?.GOOGLE_GENERATIVE_AI_API_KEY ??
-    runtimeGlobal.process?.env?.GOOGLE_GENERATIVE_AI_API_KEY
-  );
 }
 
 export function normalizeAgentMessage(message: string) {
@@ -251,14 +222,21 @@ function normalizeAgentResponseMessage(
   return FALLBACK_RESPONSE_MESSAGE;
 }
 
+function isAIConfigError(error: unknown): error is AIConfigError {
+  return (
+    error instanceof AIConfigError ||
+    (error instanceof Error && error.name === 'AIConfigError')
+  );
+}
+
 export function createAgentService(options: {
-  apiKey?: string;
   loadGalaxy?: () => Promise<AgentGalaxy>;
+  resolveModel?: () => LanguageModel;
   textGenerator?: typeof generateText;
 } = {}): AgentService {
   const {
-    apiKey,
     loadGalaxy = loadGalaxyData,
+    resolveModel = resolveLanguageModel,
     textGenerator = generateText,
   } = options;
 
@@ -272,13 +250,30 @@ export function createAgentService(options: {
         };
       }
 
-      const configuredApiKey = normalizeApiKey(
-        apiKey ?? readGoogleApiKeyFromRuntime(),
-      );
-      if (!configuredApiKey) {
+      let model: LanguageModel;
+
+      try {
+        model = resolveModel();
+      } catch (error) {
+        if (isAIConfigError(error)) {
+          return {
+            status: 503,
+            response: {
+              message: `[agent unavailable] ${error.message}`,
+              action: null,
+            },
+          };
+        }
+
         return {
-          status: 503,
-          response: MISSING_API_KEY_RESPONSE,
+          status: 500,
+          response: {
+            message:
+              error instanceof Error && error.message.trim()
+                ? `[agent unavailable] ${error.message.trim()}`
+                : GENERATION_FAILED_MESSAGE,
+            action: null,
+          },
         };
       }
 
@@ -287,9 +282,7 @@ export function createAgentService(options: {
 
       try {
         const result = await textGenerator({
-          model: createGoogleGenerativeAI({
-            apiKey: configuredApiKey,
-          })('gemini-2.5-flash'),
+          model,
           prompt: normalizedMessage,
           stopWhen: stepCountIs(2),
           system: createSystemPrompt(galaxy),
