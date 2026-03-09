@@ -3,9 +3,9 @@ import { chatService, type ChatService } from './chat-service';
 import {
   isNavigationIntent,
   resolveNavigationRequest,
-  type AgentGalaxy,
   type NavigationResolution,
 } from './navigation-resolver';
+import type { AgentGalaxy } from './navigation-resolver';
 
 export interface AgentServiceInput {
   message: string;

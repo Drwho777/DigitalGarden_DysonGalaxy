@@ -1,6 +1,5 @@
 ﻿import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { TeleportAction } from '../../types/agent';
 import {
   captureSceneSnapshot,
   flyToTarget,
@@ -20,6 +19,10 @@ import {
   flashMeshMaterial,
   showFallback,
 } from './galaxy-scene-helpers';
+import {
+  GALAXY_ACTION_EVENT,
+  type GalaxyActionEvent,
+} from './galaxy-events';
 import { createPanelRenderer } from './galaxy-scene-panel';
 import {
   advanceSceneRuntime,
@@ -448,9 +451,8 @@ export function initGalaxyScene(
     focusOnPlanet(selection.record);
   }
 
-  function handleAction(event: Event) {
-    const customEvent = event as CustomEvent<TeleportAction>;
-    const detail = customEvent.detail;
+  function handleAction(event: GalaxyActionEvent) {
+    const detail = event.detail;
     if (!detail) {
       return;
     }
@@ -519,7 +521,7 @@ export function initGalaxyScene(
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('pointerdown', handlePointerDown);
     window.removeEventListener('pointerup', handlePointerUp);
-    window.removeEventListener('galaxy:action', handleAction as EventListener);
+    window.removeEventListener(GALAXY_ACTION_EVENT, handleAction);
     backButton?.removeEventListener('click', goUpLevel);
     closeButton?.removeEventListener('click', handlePanelClose);
     panelRenderer.closePanel();
@@ -540,7 +542,7 @@ export function initGalaxyScene(
   window.addEventListener('resize', handleResize);
   window.addEventListener('pointerdown', handlePointerDown);
   window.addEventListener('pointerup', handlePointerUp);
-  window.addEventListener('galaxy:action', handleAction as EventListener);
+  window.addEventListener(GALAXY_ACTION_EVENT, handleAction);
   backButton?.addEventListener('click', goUpLevel);
   closeButton?.addEventListener('click', handlePanelClose);
 

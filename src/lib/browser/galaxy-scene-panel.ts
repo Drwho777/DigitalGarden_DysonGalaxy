@@ -1,5 +1,5 @@
-import type { TeleportAction } from '../../types/agent';
 import type { HydratedPlanet, HydratedStar } from '../galaxy-model';
+import { dispatchGalaxyAction } from './galaxy-events';
 
 interface PanelRenderOptions {
   open?: boolean;
@@ -32,14 +32,6 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
   }
 
   return element;
-}
-
-function dispatchTeleportAction(action: TeleportAction) {
-  window.dispatchEvent(
-    new CustomEvent<TeleportAction>('galaxy:action', {
-      detail: action,
-    }),
-  );
 }
 
 function createPanelCard(
@@ -97,7 +89,7 @@ function createPlanetSummaryItem(planet: HydratedPlanet) {
   });
 
   button.addEventListener('click', () => {
-    dispatchTeleportAction({
+    dispatchGalaxyAction({
       type: 'TELEPORT',
       targetId: planet.id,
       targetType: 'planet',

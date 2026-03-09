@@ -1,4 +1,5 @@
 import type { AgentResponse } from '../../types/agent';
+import { dispatchGalaxyAction } from './galaxy-events';
 
 type TerminalRole = 'user' | 'assistant';
 
@@ -118,9 +119,7 @@ export function mountAITerminal() {
     appendMessage(output, 'assistant');
 
     if (payload?.action) {
-      window.dispatchEvent(
-        new CustomEvent('galaxy:action', { detail: payload.action }),
-      );
+      dispatchGalaxyAction(payload.action);
     }
   }
 
