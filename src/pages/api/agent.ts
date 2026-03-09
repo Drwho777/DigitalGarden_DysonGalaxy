@@ -6,10 +6,14 @@ import { readAIConfigSummary } from '../../lib/ai/config';
 import { shouldRequireTeleportTool } from '../../lib/agent/service';
 import {
   createAgentRequestId,
+  logAgentError,
   logAgentRequest,
   logAgentResponse,
 } from '../../lib/observability/agent-log';
 import type { AgentResponse } from '../../types/agent';
+
+const UNEXPECTED_AGENT_ERROR_MESSAGE =
+  '[agent unavailable] failed to reach the Dyson command relay.';
 
 interface InvalidAgentRequestResult {
   ok: false;
@@ -114,22 +118,50 @@ export const POST: APIRoute = async ({ request }) => {
     requestId,
   });
 
-  const result = await agentService.respond({
-    message: parsedRequest.message,
-    requestId,
-  });
+  try {
+    const result = await agentService.respond({
+      message: parsedRequest.message,
+      requestId,
+    });
 
-  logAgentResponse({
-    actionTargetId: result.response.action?.targetId,
-    actionType: result.response.action?.type,
-    isNavigationIntent,
-    latencyMs: Date.now() - startedAt,
-    messageLength: normalizedMessage.length,
-    model: configSummary.model,
-    provider: configSummary.provider,
-    requestId,
-    status: result.status,
-  });
+    logAgentResponse({
+      actionTargetId: result.response.action?.targetId,
+      actionType: result.response.action?.type,
+      isNavigationIntent,
+      latencyMs: Date.now() - startedAt,
+      messageLength: normalizedMessage.length,
+      model: configSummary.model,
+      provider: configSummary.provider,
+      requestId,
+      status: result.status,
+    });
 
-  return jsonResponse(result.response, result.status);
+    return jsonResponse(result.response, result.status);
+  } catch (error) {
+    logAgentError(error, {
+      latencyMs: Date.now() - startedAt,
+      model: configSummary.model,
+      provider: configSummary.provider,
+      requestId,
+      status: 500,
+    });
+
+    logAgentResponse({
+      isNavigationIntent,
+      latencyMs: Date.now() - startedAt,
+      messageLength: normalizedMessage.length,
+      model: configSummary.model,
+      provider: configSummary.provider,
+      requestId,
+      status: 500,
+    });
+
+    return jsonResponse(
+      {
+        action: null,
+        message: UNEXPECTED_AGENT_ERROR_MESSAGE,
+      },
+      500,
+    );
+  }
 };

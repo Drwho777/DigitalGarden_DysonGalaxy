@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const respondMock = vi.fn();
 const logAgentRequestMock = vi.fn();
 const logAgentResponseMock = vi.fn();
+const logAgentErrorMock = vi.fn();
 
 vi.mock('../../src/lib/agent/service', () => ({
   agentService: {
@@ -20,6 +21,7 @@ vi.mock('../../src/lib/ai/config', () => ({
 
 vi.mock('../../src/lib/observability/agent-log', () => ({
   createAgentRequestId: () => 'req-test-1',
+  logAgentError: logAgentErrorMock,
   logAgentRequest: logAgentRequestMock,
   logAgentResponse: logAgentResponseMock,
 }));
@@ -44,6 +46,7 @@ describe('/api/agent', () => {
     respondMock.mockReset();
     logAgentRequestMock.mockReset();
     logAgentResponseMock.mockReset();
+    logAgentErrorMock.mockReset();
     respondMock.mockResolvedValue({
       status: 200,
       response: {
@@ -150,6 +153,41 @@ describe('/api/agent', () => {
         targetType: 'planet',
         targetId: 'p_garden',
       },
+    });
+  });
+
+  it('returns 500 when the service throws unexpectedly', async () => {
+    respondMock.mockRejectedValueOnce(new Error('boom'));
+
+    const { POST } = await loadRoute();
+    const response = await POST({
+      request: createRequest(
+        JSON.stringify({ message: '打开数字花园日志' }),
+      ),
+    } as Parameters<typeof POST>[0]);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      message: '[agent unavailable] failed to reach the Dyson command relay.',
+      action: null,
+    });
+    expect(logAgentErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'boom' }),
+      expect.objectContaining({
+        model: '@cf/zai-org/glm-4.7-flash',
+        provider: 'cloudflare',
+        requestId: 'req-test-1',
+        status: 500,
+      }),
+    );
+    expect(logAgentResponseMock).toHaveBeenLastCalledWith({
+      isNavigationIntent: true,
+      latencyMs: expect.any(Number),
+      messageLength: '打开数字花园日志'.length,
+      model: '@cf/zai-org/glm-4.7-flash',
+      provider: 'cloudflare',
+      requestId: 'req-test-1',
+      status: 500,
     });
   });
 });

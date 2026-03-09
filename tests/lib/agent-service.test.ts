@@ -1,31 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AIConfigError } from '../../src/lib/ai/config';
 import { fixtureHydratedGalaxy } from '../fixtures/galaxy-fixtures';
-
-const generateTextMock = vi.fn();
-const logAgentErrorMock = vi.fn();
-
-function createCloudflareModelContext(model: any) {
-  return {
-    config: {
-      accountId: 'account-123',
-      apiKey: 'cloudflare-key',
-      model: '@cf/zai-org/glm-4.7-flash',
-      provider: 'cloudflare' as const,
-    },
-    model,
-  };
-}
-
-vi.mock('ai', () => ({
-  generateText: generateTextMock,
-  stepCountIs: (count: number) => ({ count, type: 'step-count' }),
-  tool: <T>(definition: T) => definition,
-}));
-
-vi.mock('../../src/lib/observability/agent-log', () => ({
-  logAgentError: logAgentErrorMock,
-}));
 
 async function loadServiceModule() {
   vi.resetModules();
@@ -34,15 +8,16 @@ async function loadServiceModule() {
 
 describe('createAgentService', () => {
   beforeEach(() => {
-    generateTextMock.mockReset();
-    logAgentErrorMock.mockReset();
+    vi.resetModules();
   });
 
-  it('returns 422 for empty messages without loading galaxy or resolving a model', async () => {
+  it('returns 422 for empty messages without loading galaxy or invoking chat', async () => {
     const { createAgentService } = await loadServiceModule();
     const loadGalaxy = vi.fn();
-    const resolveModel = vi.fn();
-    const service = createAgentService({ loadGalaxy, resolveModel });
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
 
     const result = await service.respond({ message: '   ' });
 
@@ -54,167 +29,105 @@ describe('createAgentService', () => {
       },
     });
     expect(loadGalaxy).not.toHaveBeenCalled();
-    expect(resolveModel).not.toHaveBeenCalled();
-    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(chatResponder.respond).not.toHaveBeenCalled();
   });
 
-  it('returns a TELEPORT action when the model calls teleport_engine', async () => {
-    const mockModel = { id: 'mock-model:agent' } as any;
-    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
-
-    generateTextMock.mockReset();
-    generateTextMock.mockImplementation(async (options: any) => {
-      await options.tools.teleport_engine.execute({ targetId: '数字花园日志' });
-
-      return {
-        text: '已锁定数字花园日志，准备切入近地轨道。',
-        toolCalls: [
-          {
-            input: { targetId: '数字花园日志' },
-            toolName: 'teleport_engine',
-          },
-        ],
-        toolResults: [],
-      };
-    });
-
+  it('resolves a known navigation request locally without invoking chat', async () => {
     const { createAgentService } = await loadServiceModule();
     const loadGalaxy = vi.fn().mockResolvedValue(fixtureHydratedGalaxy);
-    const service = createAgentService({ loadGalaxy, resolveModel });
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
 
-    const result = await service.respond({ message: '  打开数字花园日志  ' });
-
-    expect(resolveModel).toHaveBeenCalledTimes(1);
-    expect(loadGalaxy).toHaveBeenCalledTimes(1);
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
-    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
-      model: mockModel,
-      prompt: '打开数字花园日志',
-      toolChoice: 'required',
+    const result = await service.respond({
+      message: '  带我去数字花园日志  ',
+      requestId: 'req-nav-1',
     });
-    expect(generateTextMock.mock.calls[0][0].system).toContain('teleport_engine');
+
+    expect(loadGalaxy).toHaveBeenCalledTimes(1);
+    expect(chatResponder.respond).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: 200,
       response: {
-        message: '已锁定数字花园日志，准备切入近地轨道。',
+        message: '跃迁坐标已锁定，准备执行传送。',
         action: {
           type: 'TELEPORT',
-          targetType: 'planet',
           targetId: 'p_garden',
+          targetType: 'planet',
         },
       },
     });
-    expect(logAgentErrorMock).not.toHaveBeenCalled();
   });
 
-  it('keeps action null when the model responds without a tool call', async () => {
-    generateTextMock.mockReset();
-    generateTextMock.mockResolvedValue({
-      text: '当前指令还没有对应的星区，我可以带你前往工程、哲学或 ACG 领域。',
-      toolCalls: [],
-      toolResults: [],
-    });
-
+  it('resolves short aliases like 去日志 locally without invoking chat', async () => {
     const { createAgentService } = await loadServiceModule();
-    const service = createAgentService({
-      loadGalaxy: vi.fn().mockResolvedValue(fixtureHydratedGalaxy),
-      resolveModel: vi.fn(() =>
-        createCloudflareModelContext({ id: 'mock-model:agent' } as any),
-      ),
+    const loadGalaxy = vi.fn().mockResolvedValue(fixtureHydratedGalaxy);
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
+
+    const result = await service.respond({ message: '去日志' });
+
+    expect(loadGalaxy).toHaveBeenCalledTimes(1);
+    expect(chatResponder.respond).not.toHaveBeenCalled();
+    expect(result.response.action).toEqual({
+      type: 'TELEPORT',
+      targetId: 'p_garden',
+      targetType: 'planet',
     });
+  });
 
-    const result = await service.respond({ message: '今天天气怎么样' });
+  it('returns a local not_found response for unknown navigation requests', async () => {
+    const { createAgentService } = await loadServiceModule();
+    const loadGalaxy = vi.fn().mockResolvedValue(fixtureHydratedGalaxy);
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
 
-    expect(generateTextMock.mock.calls[0][0].toolChoice).toBe('auto');
+    const result = await service.respond({ message: '打开关于我' });
+
+    expect(loadGalaxy).toHaveBeenCalledTimes(1);
+    expect(chatResponder.respond).not.toHaveBeenCalled();
     expect(result).toEqual({
       status: 200,
       response: {
-        message: '当前指令还没有对应的星区，我可以带你前往工程、哲学或 ACG 领域。',
+        message: '无法在当前星图中定位该目标，我可以带你前往工程、哲学或 ACG 领域。',
         action: null,
       },
     });
   });
 
-  it('returns a readable response when the provider config is missing', async () => {
+  it('delegates non-navigation requests to chat responder', async () => {
     const { createAgentService } = await loadServiceModule();
     const loadGalaxy = vi.fn();
-    const resolveModel = vi.fn(() => {
-      throw new AIConfigError('AI_API_KEY is not configured for provider "google".');
-    });
-    const service = createAgentService({ loadGalaxy, resolveModel });
+    const chatResponder = {
+      respond: vi.fn().mockResolvedValue({
+        status: 200,
+        response: {
+          message: '这里是一个 3D 数字花园。',
+          action: null,
+        },
+      }),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
 
-    const result = await service.respond({ message: '带我去工程星系' });
-
-    expect(result).toEqual({
-      status: 503,
-      response: {
-        message:
-          '[agent unavailable] AI_API_KEY is not configured for provider "google".',
-        action: null,
-      },
+    const result = await service.respond({
+      message: '介绍一下这个网站',
+      requestId: 'req-chat-1',
     });
+
     expect(loadGalaxy).not.toHaveBeenCalled();
-    expect(generateTextMock).not.toHaveBeenCalled();
-    expect(logAgentErrorMock).not.toHaveBeenCalled();
-  });
-
-  it('logs a config error with sanitized provider metadata when requestId is provided', async () => {
-    const { createAgentService } = await loadServiceModule();
-    const service = createAgentService({
-      resolveModel: vi.fn(() => {
-        throw new AIConfigError(
-          'AI_API_KEY is not configured for provider "cloudflare".',
-        );
-      }),
+    expect(chatResponder.respond).toHaveBeenCalledWith({
+      message: '介绍一下这个网站',
+      requestId: 'req-chat-1',
     });
-
-    await service.respond({
-      message: '带我去工程星系',
-      requestId: 'req-test-2',
-    });
-
-    expect(logAgentErrorMock).toHaveBeenCalledWith(
-      expect.any(AIConfigError),
-      expect.objectContaining({
-        model: 'gemini-2.5-flash',
-        provider: 'google',
-        requestId: 'req-test-2',
-        status: 503,
-      }),
-    );
-  });
-
-  it('keeps action null when the model calls teleport_engine with an unknown target', async () => {
-    generateTextMock.mockReset();
-    generateTextMock.mockImplementation(async (options: any) => {
-      await options.tools.teleport_engine.execute({ targetId: 'missing' });
-
-      return {
-        text: '无法在当前星图中定位该目标。',
-        toolCalls: [
-          {
-            input: { targetId: 'missing' },
-            toolName: 'teleport_engine',
-          },
-        ],
-        toolResults: [],
-      };
-    });
-
-    const { createAgentService } = await loadServiceModule();
-    const service = createAgentService({
-      loadGalaxy: vi.fn().mockResolvedValue(fixtureHydratedGalaxy),
-      resolveModel: vi.fn(() =>
-        createCloudflareModelContext({ id: 'mock-model:agent' } as any),
-      ),
-    });
-
-    const result = await service.respond({ message: '带我去不存在的星球' });
-
     expect(result).toEqual({
       status: 200,
       response: {
-        message: '无法在当前星图中定位该目标。',
+        message: '这里是一个 3D 数字花园。',
         action: null,
       },
     });

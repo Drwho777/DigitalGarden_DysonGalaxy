@@ -11,6 +11,7 @@
     "astro": "astro",
     "check": "astro check",
     "test": "vitest run",
+    "test:models": "node scripts/model-smoke.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:stress": "playwright test -c playwright.stress.config.ts",
