@@ -2,11 +2,17 @@
 import { getGalleryExhibits } from '../../src/data/gallery';
 
 interface AgentResponse {
-  action: {
-    type: 'TELEPORT';
-    targetType?: 'star' | 'planet';
-    targetId: string;
-  } | null;
+  action:
+    | {
+        type: 'TELEPORT';
+        targetType?: 'star' | 'planet';
+        targetId: string;
+      }
+    | {
+        type: 'OPEN_PATH';
+        path: string;
+      }
+    | null;
   message: string;
 }
 
@@ -88,6 +94,22 @@ async function mockArticleNavigationRoute(page: Page) {
   await page.route('**/api/agent', async (route) => {
     await route.fulfill({
       body: JSON.stringify(GARDEN_AGENT_RESPONSE),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+}
+
+async function mockArticleRecommendationRoute(page: Page) {
+  await page.route('**/api/agent', async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        action: {
+          type: 'OPEN_PATH',
+          path: GARDEN_ARTICLE_PATH,
+        },
+        message: '我先推荐你看这篇关于 3D 星系结构的文章。',
+      }),
       contentType: 'application/json',
       status: 200,
     });
@@ -194,7 +216,10 @@ test.describe('Digital Garden MVP smoke', () => {
     await expect(page.locator('#hub-back-btn')).toBeVisible();
 
     const payload = await submitGardenPrompt(page);
-    expect(payload.action?.targetId).toBe('p_garden');
+    expect(payload.action?.type).toBe('TELEPORT');
+    if (payload.action?.type === 'TELEPORT') {
+      expect(payload.action.targetId).toBe('p_garden');
+    }
   });
 
   test('star panel topic entries can focus the matching planet', async ({ page }) => {
@@ -330,6 +355,21 @@ test.describe('Digital Garden MVP smoke', () => {
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator('#info-panel')).toBeVisible();
     await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
+  });
+
+  test('home page terminal can follow an OPEN_PATH recommendation into an article', async ({
+    page,
+  }) => {
+    await mockArticleRecommendationRoute(page);
+
+    await page.goto('/');
+    await openTerminal(page);
+    await page.locator('#ai-terminal-input').fill('推荐一篇类似的文章');
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page).toHaveURL(new RegExp(`${GARDEN_ARTICLE_PATH}$`));
+    await expect(page.locator('#reader-navbar')).toBeVisible();
+    await expect(page.locator('main article h1')).toContainText('3D');
   });
 
   test('home page terminal supports first-visit guide language with hub context', async ({

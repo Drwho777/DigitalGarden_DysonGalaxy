@@ -24,6 +24,16 @@ describe('resolveInteractionIntent', () => {
     expectIntent('这里主要讲什么', 'content_understanding');
   });
 
+  it('detects recommendation language', () => {
+    expectIntent('推荐一篇类似的文章', 'recommendation');
+    expectIntent('你可能还想看什么', 'recommendation');
+  });
+
+  it('detects discovery language', () => {
+    expectIntent('最近更新的几个星球', 'discovery');
+    expectIntent('这条内容线的关键节点和关系是什么', 'discovery');
+  });
+
   it('falls back to general chat when the message is open-ended', () => {
     expectIntent('介绍一下你自己', 'general_chat');
   });

@@ -1,12 +1,17 @@
 import type { AgentResponse } from '../../types/agent';
 import type { AgentRequestContextInput } from '../../types/agent-context';
 import { chatService, type ChatService } from './chat-service';
+import { resolveInteractionIntent } from './content-intent';
 import {
   isNavigationIntent,
   resolveNavigationRequest,
   type NavigationResolution,
 } from './navigation-resolver';
 import type { AgentGalaxy } from './navigation-resolver';
+import {
+  recommendationService,
+  type RecommendationService,
+} from './recommendation-service';
 
 export interface AgentServiceInput {
   context?: AgentRequestContextInput;
@@ -42,6 +47,7 @@ export const shouldRequireTeleportTool = isNavigationIntent;
 export function createAgentService(options: {
   chatResponder?: ChatService;
   loadGalaxy?: () => Promise<AgentGalaxy>;
+  recommendationResponder?: RecommendationService;
   resolveNavigation?: (
     galaxy: AgentGalaxy,
     message: string,
@@ -50,6 +56,7 @@ export function createAgentService(options: {
   const {
     chatResponder = chatService,
     loadGalaxy = loadGalaxyData,
+    recommendationResponder = recommendationService,
     resolveNavigation = resolveNavigationRequest,
   } = options;
 
@@ -86,6 +93,18 @@ export function createAgentService(options: {
             },
           };
         }
+      }
+
+      const interactionIntent = resolveInteractionIntent(normalizedMessage);
+      if (
+        interactionIntent === 'recommendation' ||
+        interactionIntent === 'discovery'
+      ) {
+        return recommendationResponder.respond({
+          ...(context ? { context } : {}),
+          message: normalizedMessage,
+          requestId,
+        });
       }
 
       return chatResponder.respond({

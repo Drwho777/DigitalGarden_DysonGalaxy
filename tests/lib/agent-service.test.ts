@@ -148,6 +148,90 @@ describe('createAgentService', () => {
     });
   });
 
+  it('routes recommendation prompts to the recommendation responder', async () => {
+    const { createAgentService } = await loadServiceModule();
+    const loadGalaxy = vi.fn();
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const recommendationResponder = {
+      respond: vi.fn().mockResolvedValue({
+        status: 200,
+        response: {
+          message: '我先推荐你看《Astro 与 Three.js 共存时，首屏性能应该先守住什么？》。',
+          action: {
+            type: 'OPEN_PATH',
+            path: '/read/tech/p_garden/astro-3d-performance',
+          },
+        },
+      }),
+    };
+    const service = createAgentService({
+      chatResponder,
+      loadGalaxy,
+      recommendationResponder,
+    });
+
+    const result = await service.respond({
+      message: '推荐一篇类似的文章',
+      requestId: 'req-rec-1',
+    });
+
+    expect(loadGalaxy).not.toHaveBeenCalled();
+    expect(chatResponder.respond).not.toHaveBeenCalled();
+    expect(recommendationResponder.respond).toHaveBeenCalledWith({
+      message: '推荐一篇类似的文章',
+      requestId: 'req-rec-1',
+    });
+    expect(result.response.action).toEqual({
+      type: 'OPEN_PATH',
+      path: '/read/tech/p_garden/astro-3d-performance',
+    });
+  });
+
+  it('routes discovery prompts to the recommendation responder', async () => {
+    const { createAgentService } = await loadServiceModule();
+    const loadGalaxy = vi.fn();
+    const chatResponder = {
+      respond: vi.fn(),
+    };
+    const recommendationResponder = {
+      respond: vi.fn().mockResolvedValue({
+        status: 200,
+        response: {
+          message: '最近更新更活跃的星球是数字花园日志。',
+          action: {
+            type: 'TELEPORT',
+            targetId: 'p_garden',
+            targetType: 'planet',
+          },
+        },
+      }),
+    };
+    const service = createAgentService({
+      chatResponder,
+      loadGalaxy,
+      recommendationResponder,
+    });
+
+    const result = await service.respond({
+      message: '最近更新的几个星球',
+      requestId: 'req-discovery-1',
+    });
+
+    expect(loadGalaxy).not.toHaveBeenCalled();
+    expect(chatResponder.respond).not.toHaveBeenCalled();
+    expect(recommendationResponder.respond).toHaveBeenCalledWith({
+      message: '最近更新的几个星球',
+      requestId: 'req-discovery-1',
+    });
+    expect(result.response.action).toEqual({
+      type: 'TELEPORT',
+      targetId: 'p_garden',
+      targetType: 'planet',
+    });
+  });
+
   it('treats current-page summary requests as chat instead of local navigation', async () => {
     const { createAgentService } = await loadServiceModule();
     const loadGalaxy = vi.fn();

@@ -42,6 +42,11 @@ const phase2Cases = [
   '我是第一次来，怎么逛比较合适',
 ] as const;
 
+const phase3Cases = [
+  { expectedIntent: 'recommendation', message: '推荐一篇类似的文章' },
+  { expectedIntent: 'discovery', message: '最近更新的几个星球' },
+] as const;
+
 function createRequest(body: BodyInit) {
   return new Request('http://localhost/api/agent', {
     method: 'POST',
@@ -229,6 +234,50 @@ describe('/api/agent', () => {
     },
   );
 
+  it.each(phase3Cases)(
+    'records phase 3 prompt "%s" with the expected interaction intent',
+    async ({ expectedIntent, message }) => {
+      respondMock.mockResolvedValueOnce({
+        status: 200,
+        response: {
+          action:
+            expectedIntent === 'recommendation'
+              ? {
+                  type: 'OPEN_PATH',
+                  path: '/read/tech/p_garden/astro-3d-performance',
+                }
+              : {
+                  type: 'TELEPORT',
+                  targetId: 'p_garden',
+                  targetType: 'planet',
+                },
+          message: `handled: ${message}`,
+        },
+      });
+
+      const { POST } = await loadRoute();
+      const response = await POST({
+        request: createRequest(JSON.stringify({ message })),
+      } as Parameters<typeof POST>[0]);
+
+      expect(response.status).toBe(200);
+      expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          actionTargetId:
+            expectedIntent === 'recommendation'
+              ? '/read/tech/p_garden/astro-3d-performance'
+              : 'p_garden',
+          actionType:
+            expectedIntent === 'recommendation' ? 'OPEN_PATH' : 'TELEPORT',
+          interactionIntent: expectedIntent,
+          message,
+          routeType: 'hub',
+          success: true,
+        }),
+      );
+    },
+  );
+
   it('does not block the response when assistant event logging is slow', async () => {
     let resolveEventWrite: (() => void) | undefined;
     recordAssistantEventMock.mockImplementation(
@@ -246,6 +295,70 @@ describe('/api/agent', () => {
     expect(response.status).toBe(200);
     expect(recordAssistantEventMock).toHaveBeenCalledTimes(1);
     resolveEventWrite?.();
+  });
+
+  it('formats PostgREST-style assistant event errors without blocking the response', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    recordAssistantEventMock.mockRejectedValueOnce({
+      code: '57014',
+      details: 'statement timeout',
+      hint: 'Retry with a shorter query.',
+      message: 'Failed to insert assistant event.',
+      status: 504,
+    });
+
+    try {
+      const { POST } = await loadRoute();
+      const response = await POST({
+        request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
+      } as Parameters<typeof POST>[0]);
+
+      expect(response.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[assistant events unavailable]',
+        'message=Failed to insert assistant event. code=57014 details=statement timeout hint=Retry with a shorter query. status=504',
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
+  it('formats nested fetch-style assistant event errors without blocking the response', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const fetchLikeError = Object.assign(new Error('fetch failed'), {
+      cause: {
+        code: 'ETIMEDOUT',
+        response: {
+          status: 503,
+          statusText: 'Service Unavailable',
+        },
+      },
+    });
+
+    recordAssistantEventMock.mockRejectedValueOnce(fetchLikeError);
+
+    try {
+      const { POST } = await loadRoute();
+      const response = await POST({
+        request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
+      } as Parameters<typeof POST>[0]);
+
+      expect(response.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[assistant events unavailable]',
+        'message=fetch failed code=ETIMEDOUT status=503 statusText=Service Unavailable',
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   it('marks whitespace-only requests as unsuccessful assistant events', async () => {

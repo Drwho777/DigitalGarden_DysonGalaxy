@@ -1,4 +1,7 @@
-import type { AgentRequestPayload, AgentResponse } from '../../types/agent';
+import type {
+  AgentRequestPayload,
+  AgentResponse,
+} from '../../types/agent';
 import type { AgentRequestContextInput } from '../../types/agent-context';
 import { dispatchGalaxyAction, queueGalaxyAction } from './galaxy-events';
 
@@ -35,6 +38,11 @@ function readTerminalContext(element: HTMLElement): AgentRequestContextInput {
 }
 
 function routeAgentAction(action: NonNullable<AgentResponse['action']>) {
+  if (action.type === 'OPEN_PATH') {
+    window.location.assign(action.path);
+    return;
+  }
+
   if (window.location.pathname === '/') {
     dispatchGalaxyAction(action);
     return;

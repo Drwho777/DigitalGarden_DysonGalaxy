@@ -11,6 +11,8 @@
     "astro": "astro",
     "check": "astro check",
     "test": "vitest run",
+    "test:integration:assistant-events:connectivity": "node --test tests/integration/assistant-events.connectivity.remote.test.mjs",
+    "test:integration:assistant-events": "node --test tests/integration/assistant-events.remote.test.mjs",
     "test:models": "node scripts/model-smoke.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

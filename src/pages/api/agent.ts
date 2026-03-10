@@ -17,7 +17,11 @@ import {
   normalizeAgentRequestContext,
   type AgentRequestContextInput,
 } from '../../types/agent-context';
-import type { AgentResponse } from '../../types/agent';
+import {
+  getAgentActionTarget,
+  getAgentActionType,
+  type AgentResponse,
+} from '../../types/agent';
 
 const UNEXPECTED_AGENT_ERROR_MESSAGE =
   '[agent unavailable] failed to reach the Dyson command relay.';
@@ -35,6 +39,112 @@ interface ValidAgentRequestResult {
 }
 
 type AgentRequestResult = InvalidAgentRequestResult | ValidAgentRequestResult;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function stringifyLogValue(value: unknown) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  if (!isRecord(value) && !Array.isArray(value)) {
+    return undefined;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized && serialized !== '{}' ? serialized : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function collectErrorCandidates(error: unknown) {
+  const candidates: Record<string, unknown>[] = [];
+  const seen = new Set<object>();
+
+  function addCandidate(value: unknown) {
+    if (!isRecord(value) || seen.has(value)) {
+      return;
+    }
+
+    seen.add(value);
+    candidates.push(value);
+  }
+
+  addCandidate(error);
+
+  if (error instanceof Error) {
+    addCandidate(error.cause);
+  }
+
+  if (isRecord(error)) {
+    addCandidate(error.cause);
+    addCandidate(error.response);
+    addCandidate(error.error);
+
+    if (isRecord(error.cause)) {
+      addCandidate(error.cause.response);
+      addCandidate(error.cause.error);
+    }
+
+    if (isRecord(error.response)) {
+      addCandidate(error.response.error);
+    }
+  }
+
+  return candidates;
+}
+
+function readErrorField(
+  candidates: Record<string, unknown>[],
+  keys: string[],
+) {
+  for (const candidate of candidates) {
+    for (const key of keys) {
+      const value = stringifyLogValue(candidate[key]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function formatAssistantEventError(error: unknown) {
+  const directValue = stringifyLogValue(error);
+  const candidates = collectErrorCandidates(error);
+  const name = readErrorField(candidates, ['name']);
+  const message = readErrorField(candidates, ['message']);
+  const code = readErrorField(candidates, ['code', 'errorCode']);
+  const details = readErrorField(candidates, ['details']);
+  const hint = readErrorField(candidates, ['hint']);
+  const status = readErrorField(candidates, ['status', 'statusCode']);
+  const statusText = readErrorField(candidates, ['statusText']);
+  const parts = [
+    name && name !== 'Error' ? `name=${name}` : undefined,
+    message ? `message=${message}` : undefined,
+    code ? `code=${code}` : undefined,
+    details ? `details=${details}` : undefined,
+    hint ? `hint=${hint}` : undefined,
+    status ? `status=${status}` : undefined,
+    statusText ? `statusText=${statusText}` : undefined,
+  ].filter((part): part is string => Boolean(part));
+
+  if (parts.length > 0) {
+    return parts.join(' ');
+  }
+
+  return directValue ?? String(error);
+}
 
 async function recordAssistantEventSafely(input: {
   actionTargetId?: string | null;
@@ -63,7 +173,7 @@ async function recordAssistantEventSafely(input: {
   } catch (error) {
     console.error(
       '[assistant events unavailable]',
-      error instanceof Error ? error.message : String(error),
+      formatAssistantEventError(error),
     );
   }
 }
@@ -182,8 +292,9 @@ export const POST: APIRoute = async ({ request }) => {
     const latencyMs = Date.now() - startedAt;
 
     logAgentResponse({
-      actionTargetId: result.response.action?.targetId,
-      actionType: result.response.action?.type,
+      actionTargetId:
+        getAgentActionTarget(result.response.action) ?? undefined,
+      actionType: getAgentActionType(result.response.action) ?? undefined,
       isNavigationIntent,
       latencyMs,
       messageLength: normalizedMessage.length,
@@ -194,8 +305,8 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     void recordAssistantEventSafely({
-      actionTargetId: result.response.action?.targetId,
-      actionType: result.response.action?.type,
+      actionTargetId: getAgentActionTarget(result.response.action),
+      actionType: getAgentActionType(result.response.action),
       context: parsedRequest.context,
       interactionIntent,
       latencyMs,
