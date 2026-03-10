@@ -102,8 +102,7 @@ export const fixtureNodes: NodeFrontmatter[] = [
   },
 ];
 
-export const fixtureHydratedGalaxy = {
-  stars: fixtureStars.map((star) => ({
+const hydratedStars = fixtureStars.map((star) => ({
     ...star,
     totalNodes: star.id === 'tech' ? 2 : star.id === 'phil' ? 1 : 0,
     planets: star.planets.map((planet) => {
@@ -121,5 +120,84 @@ export const fixtureHydratedGalaxy = {
         articles,
       };
     }),
-  })),
+  }));
+
+export const fixtureHydratedGalaxy = {
+  planetsById: Object.fromEntries(
+    hydratedStars.flatMap((star) =>
+    star.planets.map((planet) => [planet.id, planet]),
+  ),
+  ),
+  stars: hydratedStars,
+  starsById: Object.fromEntries(hydratedStars.map((star) => [star.id, star])),
 };
+
+export const fixtureNodeEntries = fixtureNodes.map((node) => ({
+  body: `# ${node.title}\n\n${node.summary}`,
+  collection: 'nodes',
+  data: {
+    heroImage: node.heroImage,
+    planetId: node.planetId,
+    publishedAt: node.publishedAt,
+    starId: node.starId,
+    summary: node.summary,
+    tags: node.tags,
+    title: node.title,
+  },
+  id: `nodes/${node.slug}`,
+  slug: node.slug,
+}));
+
+export const fixtureLoadedHubContext = {
+  globalOverview: {
+    stars: fixtureHydratedGalaxy.stars.map((star) => ({
+      description: star.description,
+      id: star.id,
+      name: star.name,
+      nodeCount: star.totalNodes,
+      planetCount: star.planets.length,
+    })),
+  },
+  scope: 'hub' as const,
+} satisfies import('../../src/lib/agent/context-loader').LoadedAgentContext;
+
+export const fixtureLoadedNodeContext = {
+  currentNode: {
+    body: fixtureNodeEntries[0].body,
+    href: '/read/tech/p_garden/why-3d-galaxy',
+    publishedAt: fixtureNodes[0].publishedAt.toISOString(),
+    slug: fixtureNodes[0].slug,
+    summary: fixtureNodes[0].summary,
+    tags: fixtureNodes[0].tags,
+    title: fixtureNodes[0].title,
+  },
+  currentPlanet: {
+    description: fixtureStars[0].planets[0].description,
+    id: fixtureStars[0].planets[0].id,
+    name: fixtureStars[0].planets[0].name,
+    nodes: fixtureHydratedGalaxy.stars[0].planets[0].articles.map((article) => ({
+      href: article.href,
+      publishedAt: article.publishedAt.toISOString(),
+      slug: article.slug,
+      summary: article.summary,
+      tags: article.tags,
+      title: article.title,
+    })),
+    pageType: 'article_list' as const,
+    starId: fixtureStars[0].id,
+  },
+  currentStar: {
+    description: fixtureStars[0].description,
+    id: fixtureStars[0].id,
+    name: fixtureStars[0].name,
+  },
+  globalOverview: fixtureLoadedHubContext.globalOverview,
+  scope: 'node' as const,
+} satisfies import('../../src/lib/agent/context-loader').LoadedAgentContext;
+
+export const fixtureLoadedPlanetContext = {
+  currentPlanet: fixtureLoadedNodeContext.currentPlanet,
+  currentStar: fixtureLoadedNodeContext.currentStar,
+  globalOverview: fixtureLoadedHubContext.globalOverview,
+  scope: 'planet' as const,
+} satisfies import('../../src/lib/agent/context-loader').LoadedAgentContext;

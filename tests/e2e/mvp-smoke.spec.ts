@@ -45,6 +45,55 @@ async function mockGardenAgentRoute(page: Page) {
   });
 }
 
+async function mockArticleSummaryRoute(page: Page) {
+  let lastRequestBody: unknown;
+
+  await page.route('**/api/agent', async (route) => {
+    lastRequestBody = route.request().postDataJSON();
+
+    await route.fulfill({
+      body: JSON.stringify({
+        action: null,
+        message: '当前这篇文章主要在解释为什么用 3D 星系来组织数字花园。',
+      }),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+
+  return () => lastRequestBody;
+}
+
+async function mockHubGuideRoute(page: Page) {
+  let lastRequestBody: unknown;
+
+  await page.route('**/api/agent', async (route) => {
+    lastRequestBody = route.request().postDataJSON();
+
+    await route.fulfill({
+      body: JSON.stringify({
+        action: null,
+        message:
+          '如果你是第一次来，可以先从数字花园日志开始，再去工程与架构和 ACG 档案库。',
+      }),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+
+  return () => lastRequestBody;
+}
+
+async function mockArticleNavigationRoute(page: Page) {
+  await page.route('**/api/agent', async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(GARDEN_AGENT_RESPONSE),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+}
+
 async function submitGardenPrompt(page: Page) {
   const agentResponsePromise = page.waitForResponse(
     (response) =>
@@ -246,6 +295,64 @@ test.describe('Digital Garden MVP smoke', () => {
     await expect(page.locator('#ai-terminal-input')).toBeEnabled();
     await expect(page.locator('#ai-terminal-send')).toBeEnabled();
     await expect(page.locator('#info-panel')).toBeHidden();
+  });
+
+  test('article page terminal sends node context to /api/agent', async ({ page }) => {
+    const getLastRequestBody = await mockArticleSummaryRoute(page);
+
+    await page.goto(GARDEN_ARTICLE_PATH);
+    await openTerminal(page);
+    await page.locator('#ai-terminal-input').fill('总结当前页面');
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page.locator('#ai-terminal-history')).toContainText('当前这篇文章');
+    expect(getLastRequestBody()).toEqual({
+      context: {
+        routeType: 'node',
+        starId: 'tech',
+        planetId: 'p_garden',
+        slug: 'why-3d-galaxy',
+      },
+      message: '总结当前页面',
+    });
+  });
+
+  test('article page terminal can route a teleport action back to the hub scene', async ({
+    page,
+  }) => {
+    await mockArticleNavigationRoute(page);
+
+    await page.goto(GARDEN_ARTICLE_PATH);
+    await openTerminal(page);
+    await page.locator('#ai-terminal-input').fill(GARDEN_PROMPT);
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('#info-panel')).toBeVisible();
+    await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
+  });
+
+  test('home page terminal supports first-visit guide language with hub context', async ({
+    page,
+  }) => {
+    const getLastRequestBody = await mockHubGuideRoute(page);
+
+    await page.goto('/');
+    await openTerminal(page);
+    await page
+      .locator('#ai-terminal-input')
+      .fill('我是第一次来，怎么逛比较合适');
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page.locator('#ai-terminal-history')).toContainText(
+      '如果你是第一次来，可以先从数字花园日志开始',
+    );
+    expect(getLastRequestBody()).toEqual({
+      context: {
+        routeType: 'hub',
+      },
+      message: '我是第一次来，怎么逛比较合适',
+    });
   });
 
   test('article route renders seeded content', async ({ page }) => {

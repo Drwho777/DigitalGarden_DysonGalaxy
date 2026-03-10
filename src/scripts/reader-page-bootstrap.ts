@@ -1,3 +1,4 @@
+import { mountAITerminal } from '../lib/browser/ai-terminal';
 import { mountScrollReactiveNavbar } from '../lib/browser/navbar-scroll';
 
 type Cleanup = () => void;
@@ -18,7 +19,17 @@ function createReaderBootstrapState(): ReaderBootstrapState {
 
   function mount() {
     pageCleanup?.();
-    pageCleanup = mountScrollReactiveNavbar('reader-navbar');
+
+    const cleanups: Cleanup[] = [
+      mountScrollReactiveNavbar('reader-navbar'),
+      mountAITerminal(),
+    ];
+
+    pageCleanup = () => {
+      while (cleanups.length > 0) {
+        cleanups.pop()?.();
+      }
+    };
   }
 
   function unmount() {

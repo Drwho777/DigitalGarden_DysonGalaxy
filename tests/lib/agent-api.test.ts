@@ -4,6 +4,7 @@ const respondMock = vi.fn();
 const logAgentRequestMock = vi.fn();
 const logAgentResponseMock = vi.fn();
 const logAgentErrorMock = vi.fn();
+const recordAssistantEventMock = vi.fn();
 
 vi.mock('../../src/lib/agent/service', () => ({
   agentService: {
@@ -26,9 +27,20 @@ vi.mock('../../src/lib/observability/agent-log', () => ({
   logAgentResponse: logAgentResponseMock,
 }));
 
+vi.mock('../../src/lib/observability/assistant-events', () => ({
+  recordAssistantEvent: recordAssistantEventMock,
+}));
+
 async function loadRoute() {
   return import('../../src/pages/api/agent');
 }
+
+const phase2Cases = [
+  '总结当前页面',
+  '总结当前星球内容',
+  '这个花园主要有哪些内容',
+  '我是第一次来，怎么逛比较合适',
+] as const;
 
 function createRequest(body: BodyInit) {
   return new Request('http://localhost/api/agent', {
@@ -47,6 +59,7 @@ describe('/api/agent', () => {
     logAgentRequestMock.mockReset();
     logAgentResponseMock.mockReset();
     logAgentErrorMock.mockReset();
+    recordAssistantEventMock.mockReset();
     respondMock.mockResolvedValue({
       status: 200,
       response: {
@@ -114,6 +127,152 @@ describe('/api/agent', () => {
     expect(logAgentRequestMock).not.toHaveBeenCalled();
   });
 
+  it('returns 422 when context is invalid', async () => {
+    const { POST } = await loadRoute();
+    const response = await POST({
+      request: createRequest(
+        JSON.stringify({
+          context: {
+            routeType: 'node',
+            starId: 'tech',
+          },
+          message: '总结当前页面',
+        }),
+      ),
+    } as Parameters<typeof POST>[0]);
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      action: null,
+      message: '`context` is invalid.',
+    });
+    expect(respondMock).not.toHaveBeenCalled();
+    expect(logAgentRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('passes validated request context through to agentService', async () => {
+    const { POST } = await loadRoute();
+    const response = await POST({
+      request: createRequest(
+        JSON.stringify({
+          context: {
+            routeType: 'node',
+            starId: 'tech',
+            planetId: 'p_garden',
+            slug: 'why-3d-galaxy',
+          },
+          message: '总结当前页面',
+        }),
+      ),
+    } as Parameters<typeof POST>[0]);
+
+    expect(respondMock).toHaveBeenCalledWith({
+      context: {
+        routeType: 'node',
+        starId: 'tech',
+        planetId: 'p_garden',
+        slug: 'why-3d-galaxy',
+      },
+      message: '总结当前页面',
+      requestId: 'req-test-1',
+    });
+    expect(response.status).toBe(200);
+    expect(recordAssistantEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interactionIntent: 'content_understanding',
+        message: '总结当前页面',
+        planetId: 'p_garden',
+        routeType: 'node',
+        slug: 'why-3d-galaxy',
+        starId: 'tech',
+        success: true,
+      }),
+    );
+  });
+
+  it.each(phase2Cases)(
+    'accepts phase 2 prompt "%s" and forwards it to agentService unchanged',
+    async (message) => {
+      respondMock.mockResolvedValueOnce({
+        status: 200,
+        response: {
+          message: `handled: ${message}`,
+          action: null,
+        },
+      });
+
+      const { POST } = await loadRoute();
+      const response = await POST({
+        request: createRequest(JSON.stringify({ message })),
+      } as Parameters<typeof POST>[0]);
+
+      expect(respondMock).toHaveBeenCalledWith({
+        message,
+        requestId: 'req-test-1',
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        message: `handled: ${message}`,
+        action: null,
+      });
+      expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interactionIntent:
+            message === '我是第一次来，怎么逛比较合适'
+              ? 'onboarding'
+              : 'content_understanding',
+          message,
+          routeType: 'hub',
+          success: true,
+        }),
+      );
+    },
+  );
+
+  it('does not block the response when assistant event logging is slow', async () => {
+    let resolveEventWrite: (() => void) | undefined;
+    recordAssistantEventMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveEventWrite = resolve;
+        }),
+    );
+
+    const { POST } = await loadRoute();
+    const response = await POST({
+      request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
+    } as Parameters<typeof POST>[0]);
+
+    expect(response.status).toBe(200);
+    expect(recordAssistantEventMock).toHaveBeenCalledTimes(1);
+    resolveEventWrite?.();
+  });
+
+  it('marks whitespace-only requests as unsuccessful assistant events', async () => {
+    respondMock.mockResolvedValueOnce({
+      status: 422,
+      response: {
+        message: '`message` is required.',
+        action: null,
+      },
+    });
+
+    const { POST } = await loadRoute();
+    const response = await POST({
+      request: createRequest(JSON.stringify({ message: '   ' })),
+    } as Parameters<typeof POST>[0]);
+
+    expect(response.status).toBe(422);
+    expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        interactionIntent: 'general_chat',
+        message: '',
+        routeType: 'hub',
+        success: false,
+      }),
+    );
+  });
+
   it('serializes the service result without rewriting the successful contract', async () => {
     const { POST } = await loadRoute();
     const response = await POST({
@@ -154,6 +313,16 @@ describe('/api/agent', () => {
         targetId: 'p_garden',
       },
     });
+    expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        actionTargetId: 'p_garden',
+        actionType: 'TELEPORT',
+        interactionIntent: 'navigation',
+        message: '打开数字花园日志',
+        routeType: 'hub',
+        success: true,
+      }),
+    );
   });
 
   it('returns 500 when the service throws unexpectedly', async () => {
@@ -189,5 +358,15 @@ describe('/api/agent', () => {
       requestId: 'req-test-1',
       status: 500,
     });
+    expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        actionTargetId: null,
+        actionType: null,
+        interactionIntent: 'navigation',
+        message: '打开数字花园日志',
+        routeType: 'hub',
+        success: false,
+      }),
+    );
   });
 });

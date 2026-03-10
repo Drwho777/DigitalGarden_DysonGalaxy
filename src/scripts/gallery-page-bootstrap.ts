@@ -1,3 +1,4 @@
+import { mountAITerminal } from '../lib/browser/ai-terminal';
 import { mountScrollReactiveNavbar } from '../lib/browser/navbar-scroll';
 import { mountTiltCards } from '../lib/browser/tilt-cards';
 
@@ -23,6 +24,7 @@ function createGalleryBootstrapState(): GalleryBootstrapState {
     const cleanups: Cleanup[] = [
       mountScrollReactiveNavbar('gallery-navbar'),
       mountTiltCards(),
+      mountAITerminal(),
     ];
 
     pageCleanup = () => {

@@ -14,6 +14,17 @@ function mapNodeEntry(entry: CollectionEntry<'nodes'>): NodeFrontmatter {
   };
 }
 
+export async function getGalaxyNodeEntries() {
+  if (!galaxyNodeEntriesPromise) {
+    galaxyNodeEntriesPromise = getCollection('nodes').catch((error) => {
+      galaxyNodeEntriesPromise = undefined;
+      throw error;
+    });
+  }
+
+  return galaxyNodeEntriesPromise;
+}
+
 export async function getGalaxyData() {
   if (!galaxyDataPromise) {
     galaxyDataPromise = loadGalaxyData().catch((error) => {
@@ -27,10 +38,11 @@ export async function getGalaxyData() {
 
 export function clearGalaxyDataCache() {
   galaxyDataPromise = undefined;
+  galaxyNodeEntriesPromise = undefined;
 }
 
 async function loadGalaxyData(): Promise<GalaxyData> {
-  const entries = await getCollection('nodes');
+  const entries = await getGalaxyNodeEntries();
   const nodes = entries.map(mapNodeEntry);
 
   return {
@@ -40,3 +52,4 @@ async function loadGalaxyData(): Promise<GalaxyData> {
 }
 
 let galaxyDataPromise: Promise<GalaxyData> | undefined;
+let galaxyNodeEntriesPromise: Promise<CollectionEntry<'nodes'>[]> | undefined;

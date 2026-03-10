@@ -1,4 +1,5 @@
 import type { AgentResponse } from '../../types/agent';
+import type { AgentRequestContextInput } from '../../types/agent-context';
 import { chatService, type ChatService } from './chat-service';
 import {
   isNavigationIntent,
@@ -8,6 +9,7 @@ import {
 import type { AgentGalaxy } from './navigation-resolver';
 
 export interface AgentServiceInput {
+  context?: AgentRequestContextInput;
   message: string;
   requestId?: string;
 }
@@ -52,7 +54,7 @@ export function createAgentService(options: {
   } = options;
 
   return {
-    async respond({ message, requestId }) {
+    async respond({ context, message, requestId }) {
       const normalizedMessage = normalizeAgentMessage(message);
       if (!normalizedMessage) {
         return {
@@ -87,6 +89,7 @@ export function createAgentService(options: {
       }
 
       return chatResponder.respond({
+        ...(context ? { context } : {}),
         message: normalizedMessage,
         requestId,
       });

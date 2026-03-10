@@ -43,6 +43,10 @@ AI_PROVIDER=google
 AI_MODEL=gemini-2.5-flash
 AI_API_KEY=your_provider_api_key_here
 AI_ACCOUNT_ID=
+SUPABASE_URL=your_supabase_project_url_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+EMBEDDING_MODEL=gemini-embedding-001
+EMBEDDING_DIMENSIONS=1536
 ```
 
 说明：
@@ -52,6 +56,9 @@ AI_ACCOUNT_ID=
 - `cloudflare` 分支需要 `AI_ACCOUNT_ID`，并通过 OpenAI-compatible endpoint 接入
 - 兼容迁移：`google` 可回退到 `GOOGLE_GENERATIVE_AI_API_KEY`，`cloudflare` 可回退到 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`
 - 这是服务端环境变量，只给 `/api/agent` 使用，不要写成 `PUBLIC_` 前缀
+- `SUPABASE_SERVICE_ROLE_KEY` 只给服务端 observability / pgvector 检索使用，不要暴露到前端
+- `EMBEDDING_MODEL` 用于助手的向量检索链路；默认建议 `google` 使用 `gemini-embedding-001`
+- `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1536`
 - 修改 `.env` 后需要重启开发服务
 
 ### 3. 启动开发服务

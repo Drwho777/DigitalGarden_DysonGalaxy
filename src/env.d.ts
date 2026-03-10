@@ -11,6 +11,10 @@ declare global {
     readonly GOOGLE_GENERATIVE_AI_API_KEY?: string;
     readonly CLOUDFLARE_API_TOKEN?: string;
     readonly CLOUDFLARE_ACCOUNT_ID?: string;
+    readonly SUPABASE_URL?: string;
+    readonly SUPABASE_SERVICE_ROLE_KEY?: string;
+    readonly EMBEDDING_MODEL?: string;
+    readonly EMBEDDING_DIMENSIONS?: string;
     readonly PUBLIC_SUPABASE_URL: string;
     readonly PUBLIC_SUPABASE_ANON_KEY: string;
   }

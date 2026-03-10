@@ -1,4 +1,5 @@
 ﻿---
+import AITerminal from '../../../components/ai/AITerminal.astro';
 import MainLayout from '../../../layouts/MainLayout.astro';
 import TardisReturnLink from '../../../components/shared/TardisReturnLink.astro';
 import { getGalaxyData } from '../../../lib/galaxy-data';
@@ -130,6 +131,14 @@ const galleryExhibits = getGalleryExhibits(planet.id);
         </article>
       </section>
     </main>
+
+    <AITerminal
+      context={{
+        routeType: 'planet',
+        starId: star.id,
+        planetId: planet.id,
+      }}
+    />
   </div>
 
   <script src="../../../scripts/gallery-page-bootstrap.ts"></script>

@@ -1,5 +1,6 @@
-import type { AgentResponse } from '../../types/agent';
-import { dispatchGalaxyAction } from './galaxy-events';
+import type { AgentRequestPayload, AgentResponse } from '../../types/agent';
+import type { AgentRequestContextInput } from '../../types/agent-context';
+import { dispatchGalaxyAction, queueGalaxyAction } from './galaxy-events';
 
 type TerminalRole = 'user' | 'assistant';
 
@@ -18,6 +19,29 @@ async function readAgentPayload(response: Response) {
   } catch {
     return null;
   }
+}
+
+function readTerminalContext(element: HTMLElement): AgentRequestContextInput {
+  const serializedContext = element.dataset.agentContext;
+  if (!serializedContext) {
+    return { routeType: 'hub' };
+  }
+
+  try {
+    return JSON.parse(serializedContext) as AgentRequestContextInput;
+  } catch {
+    return { routeType: 'hub' };
+  }
+}
+
+function routeAgentAction(action: NonNullable<AgentResponse['action']>) {
+  if (window.location.pathname === '/') {
+    dispatchGalaxyAction(action);
+    return;
+  }
+
+  queueGalaxyAction(action);
+  window.location.assign('/');
 }
 
 export function mountAITerminal() {
@@ -48,6 +72,7 @@ export function mountAITerminal() {
   const input = inputElement;
   const sendButton = sendButtonElement;
   const history = historyElement;
+  const context = readTerminalContext(panel);
 
   let destroyed = false;
   let requestController: AbortController | null = null;
@@ -89,11 +114,15 @@ export function mountAITerminal() {
 
   async function sendMessage(message: string) {
     requestController = new AbortController();
+    const requestPayload: AgentRequestPayload = {
+      context,
+      message,
+    };
 
     const response = await fetch('/api/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(requestPayload),
       signal: requestController.signal,
     });
 
@@ -119,7 +148,7 @@ export function mountAITerminal() {
     appendMessage(output, 'assistant');
 
     if (payload?.action) {
-      dispatchGalaxyAction(payload.action);
+      routeAgentAction(payload.action);
     }
   }
 

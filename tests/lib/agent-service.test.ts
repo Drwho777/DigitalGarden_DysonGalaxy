@@ -6,6 +6,13 @@ async function loadServiceModule() {
   return import('../../src/lib/agent/service');
 }
 
+const phase2Cases = [
+  '总结当前页面',
+  '总结当前星球内容',
+  '这个花园主要有哪些内容',
+  '我是第一次来，怎么逛比较合适',
+] as const;
+
 describe('createAgentService', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -103,6 +110,12 @@ describe('createAgentService', () => {
   it('delegates non-navigation requests to chat responder', async () => {
     const { createAgentService } = await loadServiceModule();
     const loadGalaxy = vi.fn();
+    const context = {
+      routeType: 'node' as const,
+      starId: 'tech',
+      planetId: 'p_garden',
+      slug: 'why-3d-galaxy',
+    };
     const chatResponder = {
       respond: vi.fn().mockResolvedValue({
         status: 200,
@@ -115,12 +128,14 @@ describe('createAgentService', () => {
     const service = createAgentService({ chatResponder, loadGalaxy });
 
     const result = await service.respond({
+      context,
       message: '介绍一下这个网站',
       requestId: 'req-chat-1',
     });
 
     expect(loadGalaxy).not.toHaveBeenCalled();
     expect(chatResponder.respond).toHaveBeenCalledWith({
+      context,
       message: '介绍一下这个网站',
       requestId: 'req-chat-1',
     });
@@ -130,6 +145,65 @@ describe('createAgentService', () => {
         message: '这里是一个 3D 数字花园。',
         action: null,
       },
+    });
+  });
+
+  it('treats current-page summary requests as chat instead of local navigation', async () => {
+    const { createAgentService } = await loadServiceModule();
+    const loadGalaxy = vi.fn();
+    const context = {
+      routeType: 'node' as const,
+      starId: 'tech',
+      planetId: 'p_garden',
+      slug: 'why-3d-galaxy',
+    };
+    const chatResponder = {
+      respond: vi.fn().mockResolvedValue({
+        status: 200,
+        response: {
+          message: '当前这篇文章主要在解释知识结构设计。',
+          action: null,
+        },
+      }),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
+
+    const result = await service.respond({
+      context,
+      message: '总结当前页面',
+      requestId: 'req-chat-summary',
+    });
+
+    expect(loadGalaxy).not.toHaveBeenCalled();
+    expect(chatResponder.respond).toHaveBeenCalledWith({
+      context,
+      message: '总结当前页面',
+      requestId: 'req-chat-summary',
+    });
+    expect(result.response.action).toBeNull();
+  });
+
+  it.each(phase2Cases)('routes phase 2 prompt "%s" through chat', async (message) => {
+    const { createAgentService } = await loadServiceModule();
+    const loadGalaxy = vi.fn();
+    const chatResponder = {
+      respond: vi.fn().mockResolvedValue({
+        status: 200,
+        response: {
+          message: `handled: ${message}`,
+          action: null,
+        },
+      }),
+    };
+    const service = createAgentService({ chatResponder, loadGalaxy });
+
+    const result = await service.respond({ message });
+
+    expect(loadGalaxy).not.toHaveBeenCalled();
+    expect(chatResponder.respond).toHaveBeenCalledWith({ message });
+    expect(result.response).toEqual({
+      message: `handled: ${message}`,
+      action: null,
     });
   });
 });

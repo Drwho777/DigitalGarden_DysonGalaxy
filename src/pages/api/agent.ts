@@ -3,13 +3,20 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { agentService } from '../../lib/agent/service';
 import { readAIConfigSummary } from '../../lib/ai/config';
+import { resolveInteractionIntent } from '../../lib/agent/content-intent';
 import { shouldRequireTeleportTool } from '../../lib/agent/service';
+import { recordAssistantEvent } from '../../lib/observability/assistant-events';
 import {
   createAgentRequestId,
   logAgentError,
   logAgentRequest,
   logAgentResponse,
 } from '../../lib/observability/agent-log';
+import {
+  isValidAgentRequestContext,
+  normalizeAgentRequestContext,
+  type AgentRequestContextInput,
+} from '../../types/agent-context';
 import type { AgentResponse } from '../../types/agent';
 
 const UNEXPECTED_AGENT_ERROR_MESSAGE =
@@ -22,11 +29,44 @@ interface InvalidAgentRequestResult {
 }
 
 interface ValidAgentRequestResult {
+  context?: AgentRequestContextInput;
   message: string;
   ok: true;
 }
 
 type AgentRequestResult = InvalidAgentRequestResult | ValidAgentRequestResult;
+
+async function recordAssistantEventSafely(input: {
+  actionTargetId?: string | null;
+  actionType?: string | null;
+  context?: AgentRequestContextInput;
+  interactionIntent: ReturnType<typeof resolveInteractionIntent>;
+  latencyMs: number;
+  message: string;
+  success: boolean;
+}) {
+  try {
+    await recordAssistantEvent({
+      actionTargetId: input.actionTargetId ?? null,
+      actionType: input.actionType ?? null,
+      interactionIntent: input.interactionIntent,
+      latencyMs: input.latencyMs,
+      message: input.message,
+      planetId:
+        input.context?.routeType === 'hub' ? null : input.context?.planetId ?? null,
+      routeType: input.context?.routeType ?? 'hub',
+      slug: input.context?.routeType === 'node' ? input.context.slug : null,
+      starId:
+        input.context?.routeType === 'hub' ? null : input.context?.starId ?? null,
+      success: input.success,
+    });
+  } catch (error) {
+    console.error(
+      '[assistant events unavailable]',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
 
 function jsonResponse(payload: AgentResponse, status: number) {
   return new Response(JSON.stringify(payload), {
@@ -68,12 +108,26 @@ async function parseAgentRequest(request: Request): Promise<AgentRequestResult> 
     return createErrorResult(422, '`message` is required.');
   }
 
-  const { message } = body as { message?: unknown };
+  const { context, message } = body as {
+    context?: unknown;
+    message?: unknown;
+  };
   if (typeof message !== 'string') {
     return createErrorResult(422, '`message` must be a string.');
   }
 
+  if (
+    context !== undefined &&
+    !isValidAgentRequestContext(context)
+  ) {
+    return createErrorResult(422, '`context` is invalid.');
+  }
+
   return {
+    context:
+      context === undefined
+        ? undefined
+        : normalizeAgentRequestContext(context),
     ok: true,
     message,
   };
@@ -109,6 +163,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const normalizedMessage = parsedRequest.message.trim();
   const isNavigationIntent = shouldRequireTeleportTool(normalizedMessage);
+  const interactionIntent = resolveInteractionIntent(normalizedMessage);
 
   logAgentRequest({
     isNavigationIntent,
@@ -120,15 +175,17 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const result = await agentService.respond({
+      ...(parsedRequest.context ? { context: parsedRequest.context } : {}),
       message: parsedRequest.message,
       requestId,
     });
+    const latencyMs = Date.now() - startedAt;
 
     logAgentResponse({
       actionTargetId: result.response.action?.targetId,
       actionType: result.response.action?.type,
       isNavigationIntent,
-      latencyMs: Date.now() - startedAt,
+      latencyMs,
       messageLength: normalizedMessage.length,
       model: configSummary.model,
       provider: configSummary.provider,
@@ -136,10 +193,21 @@ export const POST: APIRoute = async ({ request }) => {
       status: result.status,
     });
 
+    void recordAssistantEventSafely({
+      actionTargetId: result.response.action?.targetId,
+      actionType: result.response.action?.type,
+      context: parsedRequest.context,
+      interactionIntent,
+      latencyMs,
+      message: normalizedMessage,
+      success: result.status >= 200 && result.status < 300,
+    });
+
     return jsonResponse(result.response, result.status);
   } catch (error) {
+    const latencyMs = Date.now() - startedAt;
     logAgentError(error, {
-      latencyMs: Date.now() - startedAt,
+      latencyMs,
       model: configSummary.model,
       provider: configSummary.provider,
       requestId,
@@ -148,12 +216,20 @@ export const POST: APIRoute = async ({ request }) => {
 
     logAgentResponse({
       isNavigationIntent,
-      latencyMs: Date.now() - startedAt,
+      latencyMs,
       messageLength: normalizedMessage.length,
       model: configSummary.model,
       provider: configSummary.provider,
       requestId,
       status: 500,
+    });
+
+    void recordAssistantEventSafely({
+      context: parsedRequest.context,
+      interactionIntent,
+      latencyMs,
+      message: normalizedMessage,
+      success: false,
     });
 
     return jsonResponse(

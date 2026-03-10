@@ -1,4 +1,8 @@
 import { mountAITerminal } from '../lib/browser/ai-terminal';
+import {
+  consumeQueuedGalaxyAction,
+  dispatchGalaxyAction,
+} from '../lib/browser/galaxy-events';
 import type {
   GalaxySceneHandle,
   SceneGalaxy,
@@ -87,6 +91,15 @@ function createHomeHubBootstrapState(): HomeHubBootstrapState {
           lastSceneViewState = nextViewState;
         },
       });
+
+      const pendingAction = consumeQueuedGalaxyAction();
+      if (pendingAction) {
+        requestAnimationFrame(() => {
+          if (currentSequence === mountSequence) {
+            dispatchGalaxyAction(pendingAction);
+          }
+        });
+      }
     } catch (error) {
       if (currentSequence !== mountSequence) {
         return;

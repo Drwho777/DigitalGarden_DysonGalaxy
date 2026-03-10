@@ -1,4 +1,14 @@
-﻿<div class="pointer-events-auto fixed bottom-6 left-6 z-20">
+---
+import type { AgentRequestContextInput } from '../../types/agent-context';
+
+interface Props {
+  context?: AgentRequestContextInput;
+}
+
+const { context = { routeType: 'hub' } } = Astro.props;
+---
+
+<div class="pointer-events-auto fixed bottom-6 left-6 z-20">
   <button
     id="ai-terminal-fab"
     type="button"
@@ -23,6 +33,7 @@
 
   <section
     id="ai-terminal"
+    data-agent-context={JSON.stringify(context)}
     class="glass-panel hidden w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden"
     aria-label="Dyson Brain Uplink"
   >
