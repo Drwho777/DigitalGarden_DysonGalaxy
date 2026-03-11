@@ -41,6 +41,9 @@ function showHubFallback(message: string) {
   }
 }
 
+// Record initial script execution time (HMR/Astro safe tracker)
+const loaderScriptStart = Date.now();
+
 function createHomeHubBootstrapState(): HomeHubBootstrapState {
   let sceneHandle: GalaxySceneHandle | undefined;
   let terminalCleanup: Cleanup | undefined;
@@ -91,6 +94,18 @@ function createHomeHubBootstrapState(): HomeHubBootstrapState {
           lastSceneViewState = nextViewState;
         },
       });
+
+      const loader = document.getElementById('vortex-loader');
+      if (loader) {
+        // Enforce a minimum 3.6s (3600ms) delay. Use absolute Date.now() difference to ignore HMR navigationStart discrepancies.
+        const timeElapsed = Date.now() - loaderScriptStart;
+        const remainingDelay = Math.max(0, 3600 - timeElapsed);
+
+        setTimeout(() => {
+          loader.classList.add('opacity-0');
+          setTimeout(() => loader.remove(), 1000);
+        }, remainingDelay);
+      }
 
       const pendingAction = consumeQueuedGalaxyAction();
       if (pendingAction) {

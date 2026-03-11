@@ -93,24 +93,66 @@ export function mountAITerminal() {
 
   let destroyed = false;
   let requestController: AbortController | null = null;
+  let isOpen = false;
+  let exitAnimationController: AbortController | null = null;
 
   function scrollHistoryToBottom() {
     history.scrollTop = history.scrollHeight;
   }
 
-  function setOpen(nextOpen: boolean) {
+  function setOpen(nextOpen: boolean, isInitial = false) {
     if (destroyed) return;
+    if (isOpen === nextOpen && !isInitial) return;
+    isOpen = nextOpen;
 
-    fab.classList.toggle('hidden', nextOpen);
-    panel.classList.toggle('hidden', !nextOpen);
-    panel.classList.toggle('flex', nextOpen);
+    if (exitAnimationController) {
+      exitAnimationController.abort();
+      exitAnimationController = null;
+    }
+
+    if (isInitial) {
+      fab.classList.toggle('hidden', nextOpen);
+      panel.classList.toggle('hidden', !nextOpen);
+      panel.classList.toggle('flex', nextOpen);
+      return;
+    }
 
     if (nextOpen) {
+      fab.classList.add('hidden');
+      panel.classList.remove('hidden', 'terminal-exit');
+      panel.classList.add('flex', 'terminal-enter');
+
       requestAnimationFrame(() => {
         if (!destroyed) {
           input.focus();
         }
       });
+    } else {
+      panel.classList.remove('terminal-enter');
+      panel.classList.add('terminal-exit');
+
+      exitAnimationController = new AbortController();
+
+      const finalizeClose = () => {
+        if (!isOpen && !destroyed) {
+          panel.classList.remove('flex', 'terminal-exit');
+          panel.classList.add('hidden');
+          fab.classList.remove('hidden');
+        }
+      };
+
+      const fallbackTimeout = setTimeout(finalizeClose, 300);
+
+      panel.addEventListener(
+        'animationend',
+        (e) => {
+          if (e.animationName === 'terminal-pop-out') {
+            clearTimeout(fallbackTimeout);
+            finalizeClose();
+          }
+        },
+        { signal: exitAnimationController.signal }
+      );
     }
   }
 
@@ -298,7 +340,7 @@ export function mountAITerminal() {
   fab.addEventListener('click', handleOpen);
   closeButton.addEventListener('click', handleClose);
   form.addEventListener('submit', handleSubmit);
-  setOpen(false);
+  setOpen(false, true);
 
   return function cleanupAITerminal() {
     if (destroyed) return;
@@ -306,6 +348,8 @@ export function mountAITerminal() {
     destroyed = true;
     requestController?.abort();
     requestController = null;
+    exitAnimationController?.abort();
+    exitAnimationController = null;
     fab.removeEventListener('click', handleOpen);
     closeButton.removeEventListener('click', handleClose);
     form.removeEventListener('submit', handleSubmit);

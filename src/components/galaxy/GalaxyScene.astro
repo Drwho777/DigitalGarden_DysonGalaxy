@@ -1,4 +1,4 @@
-﻿---
+---
 interface Props {
   galaxy: unknown;
 }
@@ -7,6 +7,29 @@ const { galaxy } = Astro.props;
 ---
 
 <section class="absolute inset-0 z-0">
+  <!-- Absolute Zero-Cost Capaldi-Style Clockwork Spiral Vortex Layer -->
+  <div id="vortex-loader" class="fixed inset-0 z-[100] transition-opacity duration-1000 ease-in-out pointer-events-none" style="background: #000205;">
+    
+    <div class="vortex-container">
+      <!-- 
+        Extremely performant single flat node. 
+        Optical illusion provided by repeating radial/conic gradients in CSS. 
+      -->
+      <div class="clockwork-tunnel"></div>
+      
+      <!-- Distant Golden Time Vortex Core -->
+      <div class="vortex-core-glow"></div>
+      
+      <!-- Deep Space Vignette (Static Depth Faker) -->
+      <div class="vortex-vignette"></div>
+
+      <!-- Occasional Drift Asteroids / Planets for scale -->
+      <div class="asteroid ast-1"></div>
+      <div class="asteroid ast-2"></div>
+    </div>
+
+  </div>
+
   <div id="canvas-container" class="absolute inset-0"></div>
   <div
     id="webgl-fallback"
