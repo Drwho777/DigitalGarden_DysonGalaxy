@@ -15,6 +15,7 @@
     "test:integration:assistant-events": "node --test tests/integration/assistant-events.remote.test.mjs",
     "test:integration:assistant-events:vercel": "node --test tests/integration/assistant-events.vercel.remote.test.mjs",
     "test:models": "node scripts/model-smoke.mjs",
+    "sync:garden:index": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/sync-garden-index.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:stress": "playwright test -c playwright.stress.config.ts",
