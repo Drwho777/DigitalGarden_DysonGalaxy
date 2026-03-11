@@ -91,6 +91,7 @@ npm run preview
 使用 `npm run test:integration:assistant-events:vercel` 可以验证：
 - 真实的 Vercel `/api/agent` 请求能够返回
 - 对应请求会在 `assistant_events` 表里生成新记录
+- `assistant_events` 不应只出现 `navigation`；Phase 2A 的问题最终也应写成 `content_understanding` 或 `onboarding`
 
 必需环境变量：
 
@@ -102,6 +103,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 说明：
 
+- 建议在部署完 Phase 2A 改动后立即跑一次这个远端测试，确认 observability 没有只覆盖导航请求。
+- 远端测试会给每条消息附加唯一 fingerprint，并按这条完整消息去轮询 `assistant_events`，避免把旧记录误判成当前请求。
+- `assistant_events` 的写入是最终一致的；远端验收默认会轮询 10-30 秒再判定是否观测到目标行。
 - `VERCEL_AGENT_API_URL` 填站点基址，不要写成完整的 `/api/agent` 路径。
 - 如果你填的是 `my-project.vercel.app`，脚本会自动规范化成 `https://my-project.vercel.app`。
 - `localhost`、`127.0.0.1` 和 `::1` 会被拒绝，避免误打到本地服务。

@@ -23,11 +23,18 @@ vi.mock('../../src/lib/agent/content-intent', () => ({
       return 'discovery';
     }
 
-    if (normalized.includes('start here')) {
+    if (
+      normalized.includes('start here') ||
+      normalized.includes('第一次来') ||
+      normalized.includes('怎么逛')
+    ) {
       return 'onboarding';
     }
 
-    if (normalized.includes('summarize')) {
+    if (
+      normalized.includes('summarize') ||
+      normalized.includes('这个花园主要有哪些内容')
+    ) {
       return 'content_understanding';
     }
 
@@ -65,14 +72,19 @@ async function loadRoute() {
   return import('../../src/pages/api/agent');
 }
 
+const HUB_OVERVIEW_QUESTION = '这个花园主要有哪些内容';
+const FIRST_VISIT_QUESTION = '我是第一次来，怎么逛比较合适';
+
 const phase2Cases = [
   {
+    description: 'hub overview question',
     expectedIntent: 'content_understanding',
-    message: 'summarize current page',
+    message: HUB_OVERVIEW_QUESTION,
   },
   {
+    description: 'first-visit question',
     expectedIntent: 'onboarding',
-    message: 'how do I start here?',
+    message: FIRST_VISIT_QUESTION,
   },
 ] as const;
 
@@ -278,7 +290,7 @@ describe('/api/agent', () => {
   });
 
   it.each(phase2Cases)(
-    'forwards phase 2 prompt "%s" unchanged and records the expected intent',
+    'records the $description as a successful hub assistant event with $expectedIntent',
     async ({ expectedIntent, message }) => {
       respondMock.mockResolvedValueOnce({
         status: 200,
@@ -290,10 +302,20 @@ describe('/api/agent', () => {
 
       const { POST } = await loadRoute();
       const response = await POST({
-        request: createRequest(JSON.stringify({ message })),
+        request: createRequest(
+          JSON.stringify({
+            context: {
+              routeType: 'hub',
+            },
+            message,
+          }),
+        ),
       } as Parameters<typeof POST>[0]);
 
       expect(respondMock).toHaveBeenCalledWith({
+        context: {
+          routeType: 'hub',
+        },
         message,
         requestId: 'req-test-1',
       });
@@ -306,8 +328,11 @@ describe('/api/agent', () => {
         expect.objectContaining({
           interactionIntent: expectedIntent,
           message,
+          planetId: null,
           requestId: 'req-test-1',
           routeType: 'hub',
+          slug: null,
+          starId: null,
           success: true,
         }),
       );
