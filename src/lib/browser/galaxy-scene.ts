@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
   captureSceneSnapshot,
@@ -156,16 +156,19 @@ export function initGalaxyScene(
   camera.position.copy(getCameraOffset('GALAXY'));
 
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25)); // Capped at 1.25 to save fill-rate
   sceneContainer.innerHTML = '';
   sceneContainer.appendChild(renderer.domElement);
 
   const universeGroup = new THREE.Group();
   scene.add(universeGroup);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  
+  // Lower ambient light to make the dark side of planets actually dark
+  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
 
-  const pointLight = new THREE.PointLight(0x66ccff, 1.1, 3200);
-  pointLight.position.set(300, 260, 200);
+  // Strong directional point light to create the terminator line (day/night)
+  const pointLight = new THREE.PointLight(0xffffff, 3.5, 6000);
+  pointLight.position.set(400, 300, 500);
   scene.add(pointLight);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -484,6 +487,7 @@ export function initGalaxyScene(
     animationFrame = window.requestAnimationFrame(animate);
     controls.update();
     advanceSceneRuntime({
+      camera,
       lanePackets,
       planetRecords,
       starRecords,
