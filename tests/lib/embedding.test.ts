@@ -27,7 +27,7 @@ async function loadEmbeddingModule() {
   return import('../../src/lib/ai/embedding');
 }
 
-describe('embedQuery', () => {
+describe('embedding helpers', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -102,6 +102,31 @@ describe('embedQuery', () => {
       model: { kind: 'cloudflare-embedding-model' },
       providerOptions: undefined,
       value: 'garden overview',
+    });
+  });
+
+  it('creates retrieval-document embeddings for content indexing', async () => {
+    process.env.AI_PROVIDER = 'google';
+    process.env.AI_API_KEY = 'google-key';
+    process.env.EMBEDDING_MODEL = 'gemini-embedding-001';
+    process.env.EMBEDDING_DIMENSIONS = '1536';
+    embedMock.mockResolvedValue({
+      embedding: Array.from({ length: 1536 }, () => 0.01),
+    });
+
+    const { embedDocument } = await loadEmbeddingModule();
+    const embedding = await embedDocument('section text');
+
+    expect(embedding).toHaveLength(1536);
+    expect(embedMock).toHaveBeenCalledWith({
+      model: { kind: 'google-embedding-model' },
+      providerOptions: {
+        google: {
+          outputDimensionality: 1536,
+          taskType: 'RETRIEVAL_DOCUMENT',
+        },
+      },
+      value: 'section text',
     });
   });
 });

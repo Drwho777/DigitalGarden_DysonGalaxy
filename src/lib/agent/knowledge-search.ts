@@ -20,7 +20,7 @@ export async function searchKnowledge(input: {
   context?: AgentRequestContextInput;
   query: string;
 }): Promise<KnowledgeSearchMatch[]> {
-  const embedding = await embedQuery(input.query);
+  const queryEmbedding = await embedQuery(input.query);
   const client = createServerSupabaseClient();
 
   const { data, error } = await client.rpc('match_node_embeddings', {
@@ -30,7 +30,7 @@ export async function searchKnowledge(input: {
     filter_star_id:
       input.context?.routeType === 'hub' ? null : input.context?.starId ?? null,
     match_count: 6,
-    query_embedding: embedding,
+    query_embedding: queryEmbedding,
   });
 
   if (error) {

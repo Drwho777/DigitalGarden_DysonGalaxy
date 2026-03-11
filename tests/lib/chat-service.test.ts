@@ -191,6 +191,7 @@ describe('createChatService', () => {
     const service = createChatService({
       loadContext,
       resolveModel,
+      semanticRetrievalEnabled: () => true,
       searchKnowledge: searchKnowledgeMock,
     });
 
@@ -245,6 +246,35 @@ describe('createChatService', () => {
     );
     expect(generateTextMock.mock.calls[0][0].system).toContain('当前作用域：hub');
     expect(generateTextMock.mock.calls[0][0].system).toContain('当前位于首页');
+  });
+
+  it('skips semantic retrieval when the flag helper returns false', async () => {
+    const mockModel = { id: 'mock-model:chat' } as any;
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
+
+    generateTextMock.mockResolvedValue({
+      text: '当前这个星球主要聚焦数字花园的构建记录和知识结构设计。',
+    });
+
+    const { createChatService } = await loadChatServiceModule();
+    const loadContext = vi.fn().mockResolvedValue(fixtureLoadedPlanetContext);
+    const service = createChatService({
+      loadContext,
+      resolveModel,
+      searchKnowledge: searchKnowledgeMock,
+      semanticRetrievalEnabled: () => false,
+    });
+
+    await service.respond({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      message: '总结当前星球内容',
+    });
+
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
   });
 
   it('builds a hub overview prompt for whole-garden questions', async () => {
@@ -453,6 +483,7 @@ describe('createChatService', () => {
     const service = createChatService({
       loadContext,
       resolveModel,
+      semanticRetrievalEnabled: () => true,
       searchKnowledge: searchKnowledgeMock,
     });
 

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const embedQueryMock = vi.fn();
+const embedDocumentMock = vi.fn();
 const rpcMock = vi.fn();
 const createServerSupabaseClientMock = vi.fn(() => ({
   rpc: rpcMock,
 }));
 
 vi.mock('../../src/lib/ai/embedding', () => ({
+  embedDocument: embedDocumentMock,
   embedQuery: embedQueryMock,
 }));
 
@@ -22,6 +24,7 @@ async function loadKnowledgeSearchModule() {
 describe('searchKnowledge', () => {
   beforeEach(() => {
     vi.resetModules();
+    embedDocumentMock.mockReset();
     embedQueryMock.mockReset();
     rpcMock.mockReset();
     createServerSupabaseClientMock.mockClear();
@@ -53,6 +56,7 @@ describe('searchKnowledge', () => {
         filter_star_id: null,
       }),
     );
+    expect(embedDocumentMock).not.toHaveBeenCalled();
     expect(matches.length).toBeGreaterThan(0);
   });
 

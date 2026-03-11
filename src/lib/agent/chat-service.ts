@@ -1,12 +1,17 @@
 import { generateText } from 'ai';
 import type { AgentResponse } from '../../types/agent';
 import type { AgentRequestContextInput } from '../../types/agent-context';
-import { AIConfigError, readAIConfigSummary } from '../ai/config';
+import {
+  AIConfigError,
+  readAIConfigSummary,
+  readRuntimeEnv,
+} from '../ai/config';
 import {
   resolveLanguageModelContext,
   type ResolvedLanguageModel,
 } from '../ai/provider';
 import { logAgentError } from '../observability/agent-log';
+import { isSemanticRetrievalEnabled } from './semantic-retrieval';
 import {
   resolveInteractionIntent,
   type InteractionIntent,
@@ -367,6 +372,7 @@ export function createChatService(options: {
     input?: AgentRequestContextInput,
   ) => Promise<LoadedAgentContext>;
   resolveModel?: () => ResolvedLanguageModel;
+  semanticRetrievalEnabled?: () => boolean;
   searchKnowledge?: (input: {
     context?: AgentRequestContextInput;
     query: string;
@@ -376,6 +382,8 @@ export function createChatService(options: {
   const {
     loadContext = loadStructuredAgentContext,
     resolveModel = resolveLanguageModelContext,
+    semanticRetrievalEnabled = () =>
+      isSemanticRetrievalEnabled(readRuntimeEnv()),
     searchKnowledge = loadSemanticKnowledge,
     textGenerator = generateText,
   } = options;
@@ -444,6 +452,7 @@ export function createChatService(options: {
 
         if (
           interactionIntent === 'content_understanding' &&
+          semanticRetrievalEnabled() &&
           structuredContext.scope !== 'node'
         ) {
           try {
