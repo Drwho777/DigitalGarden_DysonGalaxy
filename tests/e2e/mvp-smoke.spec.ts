@@ -43,6 +43,7 @@ const GARDEN_PROMPT = '打开数字花园日志';
 const GARDEN_TITLE = '数字花园日志';
 const TECH_STAR_TITLE = '工程与架构';
 const GARDEN_ARTICLE_PATH = '/read/tech/p_garden/why-3d-galaxy';
+const HUB_OVERVIEW_PROMPT = '这个花园主要有哪些内容';
 const GARDEN_AGENT_RESPONSE: AgentResponse = {
   message: '已锁定数字花园日志，准备切入近地轨道。',
   action: {
@@ -104,6 +105,26 @@ async function mockHubGuideRoute(page: Page) {
         action: null,
         message:
           '如果你是第一次来，可以先从数字花园日志开始，再去工程与架构和 ACG 档案库。',
+      }),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+
+  return () => lastRequestBody;
+}
+
+async function mockHubOverviewRoute(page: Page) {
+  let lastRequestBody: unknown;
+
+  await page.route('**/api/agent', async (route) => {
+    lastRequestBody = route.request().postDataJSON();
+
+    await route.fulfill({
+      body: JSON.stringify({
+        action: null,
+        message:
+          '这个花园目前主要有数字花园日志、工程与架构和 ACG 档案库等内容。',
       }),
       contentType: 'application/json',
       status: 200,
@@ -391,6 +412,24 @@ test.describe('Digital Garden MVP smoke', () => {
     });
   });
 
+  test('article page whole-garden question keeps whole-garden scope in terminal history', async ({
+    page,
+  }) => {
+    await mockHubOverviewRoute(page);
+
+    await page.goto(GARDEN_ARTICLE_PATH);
+    await openTerminal(page);
+    await page.locator('#ai-terminal-input').fill(HUB_OVERVIEW_PROMPT);
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page.locator('#ai-terminal-history')).toContainText(
+      '这个花园目前主要有',
+    );
+    await expect(page.locator('#ai-terminal-history')).not.toContainText(
+      '只谈当前这篇文章',
+    );
+  });
+
   test('article page terminal can route a teleport action back to the hub scene', async ({
     page,
   }) => {
@@ -456,6 +495,27 @@ test.describe('Digital Garden MVP smoke', () => {
         routeType: 'hub',
       },
       message: '我是第一次来，怎么逛比较合适',
+    });
+  });
+
+  test('home page terminal supports whole-garden overview language with hub context', async ({
+    page,
+  }) => {
+    const getLastRequestBody = await mockHubOverviewRoute(page);
+
+    await page.goto('/');
+    await openTerminal(page);
+    await page.locator('#ai-terminal-input').fill(HUB_OVERVIEW_PROMPT);
+    await page.locator('#ai-terminal-send').click();
+
+    await expect(page.locator('#ai-terminal-history')).toContainText(
+      '这个花园目前主要有',
+    );
+    expect(getLastRequestBody()).toEqual({
+      context: {
+        routeType: 'hub',
+      },
+      message: HUB_OVERVIEW_PROMPT,
     });
   });
 
