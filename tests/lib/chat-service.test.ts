@@ -277,6 +277,43 @@ describe('createChatService', () => {
     expect(searchKnowledgeMock).not.toHaveBeenCalled();
   });
 
+  it('uses semantic retrieval when explicitly enabled', async () => {
+    const mockModel = { id: 'mock-model:chat' } as any;
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
+
+    generateTextMock.mockResolvedValue({
+      text: '当前这个星球主要记录数字花园的构建过程。',
+    });
+    searchKnowledgeMock.mockResolvedValue([]);
+
+    const { createChatService } = await loadChatServiceModule();
+    const loadContext = vi.fn().mockResolvedValue(fixtureLoadedPlanetContext);
+    const service = createChatService({
+      loadContext,
+      resolveModel,
+      searchKnowledge: searchKnowledgeMock,
+      semanticRetrievalEnabled: () => true,
+    });
+
+    await service.respond({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      message: '总结当前星球内容',
+    });
+
+    expect(searchKnowledgeMock).toHaveBeenCalledWith({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      query: '总结当前星球内容',
+    });
+  });
+
   it('builds a hub overview prompt for whole-garden questions', async () => {
     const mockModel = { id: 'mock-model:chat' } as any;
     const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));

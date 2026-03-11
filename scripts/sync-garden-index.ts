@@ -4,7 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 import { embedDocument } from '../src/lib/ai/embedding.ts';
 import { syncNodeEmbeddings } from '../src/lib/content-sync/embeddings-sync.ts';
 import { loadMarkdownSourceNodes } from '../src/lib/content-sync/markdown-source.ts';
-import { syncNodesToSupabase } from '../src/lib/content-sync/nodes-sync.ts';
+import {
+  syncNodesToSupabase,
+  type NodesUpsertRow,
+} from '../src/lib/content-sync/nodes-sync.ts';
 
 function readCliFlags(argv: string[]) {
   return {
@@ -84,6 +87,48 @@ function createNodeKey(input: {
   starId: string;
 }) {
   return `${input.starId}::${input.planetId}::${input.slug}`;
+}
+
+function createNodesSyncClient(
+  supabase: ReturnType<typeof createScriptSupabaseClient>,
+) {
+  return {
+    from(table: 'nodes') {
+      return {
+        async upsert(
+          rows: NodesUpsertRow[],
+          options: { onConflict: string },
+        ) {
+          const { error } = await supabase.from(table).upsert(rows, options);
+          return { error };
+        },
+      };
+    },
+  };
+}
+
+function createEmbeddingsSyncClient(
+  supabase: ReturnType<typeof createScriptSupabaseClient>,
+) {
+  return {
+    async rpc(
+      fn: 'replace_node_embeddings_for_node',
+      args: {
+        expected_content_hash: string;
+        rows: Array<{
+          chunk_index: number;
+          chunk_token_count: number;
+          content_chunk: string;
+          embedding: number[];
+          embedding_model: string;
+        }>;
+        target_node_id: string;
+      },
+    ) {
+      const { error } = await supabase.rpc(fn, args);
+      return { error };
+    },
+  };
 }
 
 async function loadExistingNodesFromSupabase(
@@ -167,7 +212,7 @@ async function main() {
 
   const summary = await syncNodesToSupabase({
     sourceNodes: nodesToSync,
-    supabase,
+    supabase: createNodesSyncClient(supabase),
   });
   let embeddedChunkCount = 0;
 
@@ -206,9 +251,7 @@ async function main() {
         };
       }),
       embedDocument,
-      supabase: {
-        rpc: supabase.rpc.bind(supabase),
-      },
+      supabase: createEmbeddingsSyncClient(supabase),
     });
     embeddedChunkCount = embeddingSummary.embeddedChunkCount;
   }
