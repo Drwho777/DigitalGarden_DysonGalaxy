@@ -47,6 +47,38 @@ describe('loadAgentContext', () => {
     expect(result.currentNode).toBeUndefined();
   });
 
+  it('returns featured planets and recent nodes in hub scope', async () => {
+    const { loadAgentContext } = await loadContextLoaderModule();
+
+    const result = await loadAgentContext({ routeType: 'hub' });
+
+    expect(result.scope).toBe('hub');
+    expect(result.globalOverview.featuredPlanets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'p_garden',
+          name: expect.any(String),
+          starId: 'tech',
+        }),
+      ]),
+    );
+    expect(result.globalOverview.recentNodes[0]).toMatchObject({
+      slug: expect.any(String),
+      title: expect.any(String),
+      planetId: expect.any(String),
+      starId: expect.any(String),
+    });
+  });
+
+  it('always returns empty arrays instead of undefined when the garden is sparse', async () => {
+    const { loadAgentContext } = await loadContextLoaderModule();
+
+    const result = await loadAgentContext({ routeType: 'hub' });
+
+    expect(Array.isArray(result.globalOverview.featuredPlanets)).toBe(true);
+    expect(Array.isArray(result.globalOverview.recentNodes)).toBe(true);
+  });
+
   it('loads planet-scoped context with node summaries and global overview', async () => {
     const { loadAgentContext } = await loadContextLoaderModule();
 

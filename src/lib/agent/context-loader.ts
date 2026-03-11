@@ -28,6 +28,27 @@ export interface AgentContextStarSummary {
   nodeCount: number;
 }
 
+export interface AgentContextFeaturedPlanetSummary {
+  id: string;
+  name: string;
+  description: string;
+  nodeCount: number;
+  pageType: 'article_list' | 'gallery';
+  starId: string;
+  starName: string;
+}
+
+export interface AgentContextRecentNodeSummary {
+  slug: string;
+  title: string;
+  summary: string;
+  publishedAt: string;
+  planetId: string;
+  planetName: string;
+  starId: string;
+  starName: string;
+}
+
 export interface LoadedAgentContext {
   scope: 'hub' | 'planet' | 'node';
   currentNode?: {
@@ -55,6 +76,8 @@ export interface LoadedAgentContext {
   };
   globalOverview: {
     stars: AgentContextStarSummary[];
+    featuredPlanets: AgentContextFeaturedPlanetSummary[];
+    recentNodes: AgentContextRecentNodeSummary[];
   };
 }
 
@@ -88,6 +111,86 @@ function mapNodeSummaryFromArticle(article: HydratedArticle) {
   };
 }
 
+function getPlanetFreshnessTimestamp(
+  planet: Awaited<ReturnType<typeof getGalaxyData>>['stars'][number]['planets'][number],
+) {
+  return planet.articles[0]?.publishedAt.getTime() ?? 0;
+}
+
+function buildFeaturedPlanets(
+  galaxy: Awaited<ReturnType<typeof getGalaxyData>>,
+): AgentContextFeaturedPlanetSummary[] {
+  return galaxy.stars
+    .flatMap((star) =>
+      star.planets
+        .filter((planet) => planet.nodeCount > 0)
+        .map((planet) => ({
+          description: planet.description,
+          id: planet.id,
+          name: planet.name,
+          nodeCount: planet.nodeCount,
+          pageType: planet.pageType,
+          starId: star.id,
+          starName: star.name,
+        })),
+    )
+    .sort((left, right) => {
+      if (right.nodeCount !== left.nodeCount) {
+        return right.nodeCount - left.nodeCount;
+      }
+
+      const leftFreshness =
+        getPlanetFreshnessTimestamp(galaxy.planetsById[left.id]) ?? 0;
+      const rightFreshness =
+        getPlanetFreshnessTimestamp(galaxy.planetsById[right.id]) ?? 0;
+
+      if (rightFreshness !== leftFreshness) {
+        return rightFreshness - leftFreshness;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+}
+
+function buildRecentNodes(
+  galaxy: Awaited<ReturnType<typeof getGalaxyData>>,
+): AgentContextRecentNodeSummary[] {
+  return galaxy.stars
+    .flatMap((star) =>
+      star.planets.flatMap((planet) =>
+        planet.articles.map((article) => ({
+          planetId: planet.id,
+          planetName: planet.name,
+          publishedAt: serializePublishedAt(article.publishedAt),
+          slug: article.slug,
+          starId: star.id,
+          starName: star.name,
+          summary: article.summary,
+          title: article.title,
+        })),
+      ),
+    )
+    .sort((left, right) => {
+      const publishedAtOrder =
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime();
+
+      if (publishedAtOrder !== 0) {
+        return publishedAtOrder;
+      }
+
+      if (left.starId !== right.starId) {
+        return left.starId.localeCompare(right.starId);
+      }
+
+      if (left.planetId !== right.planetId) {
+        return left.planetId.localeCompare(right.planetId);
+      }
+
+      return left.slug.localeCompare(right.slug);
+    })
+    .slice(0, 5);
+}
+
 function mapGalleryHighlight(planetId: string): AgentContextHighlight[] {
   return getGalleryExhibits(planetId).map((item) => ({
     summary: item.summary,
@@ -100,6 +203,8 @@ function buildGlobalOverview(
   galaxy: Awaited<ReturnType<typeof getGalaxyData>>,
 ): LoadedAgentContext['globalOverview'] {
   return {
+    featuredPlanets: buildFeaturedPlanets(galaxy),
+    recentNodes: buildRecentNodes(galaxy),
     stars: galaxy.stars.map((star) => ({
       description: star.description,
       id: star.id,
