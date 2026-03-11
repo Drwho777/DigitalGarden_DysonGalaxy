@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { parse as parseDotenv } from 'dotenv';
 import { embedDocument } from '../src/lib/ai/embedding.ts';
 import { syncNodeEmbeddings } from '../src/lib/content-sync/embeddings-sync.ts';
 import { loadMarkdownSourceNodes } from '../src/lib/content-sync/markdown-source.ts';
@@ -17,32 +18,10 @@ function readCliFlags(argv: string[]) {
   };
 }
 
-function parseEnvFile(contents: string) {
-  const env: Record<string, string> = {};
-
-  for (const rawLine of contents.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = line.indexOf('=');
-    if (separatorIndex <= 0) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-    env[key] = value;
-  }
-
-  return env;
-}
-
 function readScriptEnv() {
   const envPath = path.resolve(process.cwd(), '.env');
   const fileEnv = existsSync(envPath)
-    ? parseEnvFile(readFileSync(envPath, 'utf8'))
+    ? parseDotenv(readFileSync(envPath, 'utf8'))
     : {};
 
   return {
