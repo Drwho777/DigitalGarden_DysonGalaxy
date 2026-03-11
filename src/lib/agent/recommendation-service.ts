@@ -1,4 +1,6 @@
 import type {
+  AgentRecommendationItem,
+  AgentRecommendationsPayload,
   AgentResponse,
   OpenPathAction,
   TeleportAction,
@@ -103,7 +105,7 @@ const RECOMMENDATION_STOPWORDS = [
   /读/gu,
   /这个/gu,
   /哪些/gu,
-  /一下/gu,
+  /一个/gu,
 ];
 
 function normalizeText(value: string) {
@@ -139,6 +141,67 @@ function createOpenPathAction(path: string): OpenPathAction {
     type: 'OPEN_PATH',
     path,
   };
+}
+
+function createRecommendationResponse(
+  message: string,
+  mode: AgentRecommendationsPayload['mode'],
+  items: AgentRecommendationItem[],
+): AgentResponse {
+  return {
+    action: null,
+    message,
+    recommendations:
+      items.length > 0
+        ? {
+            items,
+            mode,
+          }
+        : null,
+  };
+}
+
+function createNodeRecommendationItem(
+  node: RankedNodeRecommendation | NodeReference,
+  kind: AgentRecommendationItem['kind'],
+): AgentRecommendationItem {
+  return {
+    action: createOpenPathAction(node.href),
+    badge: 'ARTICLE',
+    description: node.summary,
+    hint: `${formatDate(node.publishedAt)} · ${node.starName} / ${node.planetName}`,
+    id: `node:${node.slug}`,
+    kind,
+    title: node.title,
+  };
+}
+
+function createPlanetRecommendationItem(
+  planet: RankedPlanetRecommendation | PlanetReference,
+  kind: AgentRecommendationItem['kind'],
+): AgentRecommendationItem {
+  return {
+    action: createTeleportAction(planet.id, 'planet'),
+    badge: 'PLANET',
+    description:
+      planet.description || `当前有 ${planet.nodeCount} 篇内容可继续浏览。`,
+    hint: `${planet.starName} · ${planet.nodeCount} 篇内容${
+      planet.latestTitle ? ` · 最新《${planet.latestTitle}》` : ''
+    }`,
+    id: `planet:${planet.id}`,
+    kind,
+    title: planet.name,
+  };
+}
+
+function toRecommendationItems<T>(
+  entries: T[],
+  mapEntry: (entry: T, kind: AgentRecommendationItem['kind']) => AgentRecommendationItem,
+  limit = 3,
+) {
+  return entries.slice(0, limit).map((entry, index) => {
+    return mapEntry(entry, index === 0 ? 'primary' : 'secondary');
+  });
 }
 
 function extractKeywords(message: string) {
@@ -189,20 +252,11 @@ function resolveRecommendationMode(message: string): RecommendationMode {
     return 'recent_planets';
   }
 
-  if (
-    /最近新增/u.test(message) ||
-    /新增内容/u.test(message) ||
-    /最新内容/u.test(message)
-  ) {
+  if (/最近新增/u.test(message) || /新增内容/u.test(message) || /最新内容/u.test(message)) {
     return 'recent_nodes';
   }
 
-  if (
-    /关键节点/u.test(message) ||
-    /关系/u.test(message) ||
-    /脉络/u.test(message) ||
-    /主干是什么/u.test(message)
-  ) {
+  if (/关键节点/u.test(message) || /关系/u.test(message) || /脉络/u.test(message) || /主干是什么/u.test(message)) {
     return 'relationship_map';
   }
 
@@ -413,7 +467,7 @@ function rankPlanetRecommendations(input: {
 
       if (currentStarId && planet.starId === currentStarId) {
         score += 4;
-        reasons.push(`和当前位置同属「${planet.starName}」主题`);
+        reasons.push(`和当前所在位置同属「${planet.starName}」主线`);
       }
 
       if (currentPlanetId && planet.id === currentPlanetId) {
@@ -462,57 +516,6 @@ function rankPlanetRecommendations(input: {
     });
 }
 
-function buildSecondaryLines(input: {
-  primaryNode: RankedNodeRecommendation | null;
-  primaryPlanet: RankedPlanetRecommendation | null;
-  nodes: RankedNodeRecommendation[];
-  planets: RankedPlanetRecommendation[];
-}) {
-  const lines: string[] = [];
-  const usedNodeSlugs = new Set<string>();
-  const usedPlanetIds = new Set<string>();
-
-  if (input.primaryNode) {
-    usedNodeSlugs.add(input.primaryNode.slug);
-    usedPlanetIds.add(input.primaryNode.planetId);
-  }
-
-  if (input.primaryPlanet) {
-    usedPlanetIds.add(input.primaryPlanet.id);
-  }
-
-  for (const node of input.nodes) {
-    if (usedNodeSlugs.has(node.slug) || usedPlanetIds.has(node.planetId)) {
-      continue;
-    }
-
-    usedNodeSlugs.add(node.slug);
-    usedPlanetIds.add(node.planetId);
-    lines.push(`- 《${node.title}》：${node.summary}，入口 ${node.href}`);
-
-    if (lines.length >= 2) {
-      return lines;
-    }
-  }
-
-  for (const planet of input.planets) {
-    if (usedPlanetIds.has(planet.id)) {
-      continue;
-    }
-
-    usedPlanetIds.add(planet.id);
-    lines.push(
-      `- 「${planet.name}」：目前有 ${planet.nodeCount} 篇内容，最新一篇是《${planet.latestTitle ?? '暂无'}》`,
-    );
-
-    if (lines.length >= 2) {
-      return lines;
-    }
-  }
-
-  return lines;
-}
-
 function buildContextualRecommendationResponse(input: {
   context: LoadedAgentContext;
   galaxy: GalaxyData;
@@ -552,28 +555,19 @@ function buildContextualRecommendationResponse(input: {
         (primaryNode?.score ?? 0) >= (primaryPlanet?.score ?? 0))
     );
 
-  const secondaryLines = buildSecondaryLines({
-    nodes: nodeRecommendations,
-    planets: planetRecommendations,
-    primaryNode: chooseNode ? primaryNode : null,
-    primaryPlanet: chooseNode ? null : primaryPlanet,
-  });
-
   if (chooseNode && primaryNode) {
-    return {
-      action: createOpenPathAction(primaryNode.href),
-      message: [
-        `我先推荐你看《${primaryNode.title}》。`,
+    return createRecommendationResponse(
+      [
+        `我先帮你筛出了一篇最贴近当前问题的文章：《${primaryNode.title}》。`,
         '',
         '推荐理由：',
         ...renderReasonList(primaryNode.reasons),
         '',
-        `它位于「${primaryNode.planetName}」星球，入口是 ${primaryNode.href}`,
-        ...(secondaryLines.length > 0
-          ? ['', '你可能还想看：', ...secondaryLines]
-          : []),
+        '下面给你主推荐和备选项；只有点击后，才会执行打开。',
       ].join('\n'),
-    } satisfies AgentResponse;
+      'recommendation',
+      toRecommendationItems(nodeRecommendations, createNodeRecommendationItem),
+    );
   }
 
   const planet = primaryPlanet ?? null;
@@ -584,20 +578,21 @@ function buildContextualRecommendationResponse(input: {
     } satisfies AgentResponse;
   }
 
-  return {
-    action: createTeleportAction(planet.id, 'planet'),
-    message: [
-      `我先推荐你去「${planet.name}」这个星球逛一圈。`,
+  return createRecommendationResponse(
+    [
+      `我先帮你圈定一个更适合继续探索的入口：${planet.name}。`,
       '',
       '推荐理由：',
       ...renderReasonList(planet.reasons),
       '',
-      `这里目前有 ${planet.nodeCount} 篇内容，最新一篇是《${planet.latestTitle ?? '暂无'}》。`,
-      ...(secondaryLines.length > 0
-        ? ['', '你可能还想看：', ...secondaryLines]
-        : []),
+      '下面给你主推荐和备选项；只有点击后，才会执行进入。',
     ].join('\n'),
-  } satisfies AgentResponse;
+    'recommendation',
+    toRecommendationItems(
+      planetRecommendations,
+      createPlanetRecommendationItem,
+    ),
+  );
 }
 
 function buildRecentPlanetsResponse(galaxy: GalaxyData) {
@@ -619,18 +614,19 @@ function buildRecentPlanetsResponse(galaxy: GalaxyData) {
     } satisfies AgentResponse;
   }
 
-  return {
-    action: createTeleportAction(primary.id, 'planet'),
-    message: [
-      '最近更新更活跃的星球是：',
+  return createRecommendationResponse(
+    [
+      '我把最近更新更活跃的星球入口先排出来了：',
       ...planets.map(
         (planet) =>
-          `- 「${planet.name}」：${formatDate(planet.latestPublishedAt)} 更新，最新一篇是《${planet.latestTitle ?? '暂无'}》`,
+          `- ${planet.name}：${formatDate(planet.latestPublishedAt)} 更新，最新一篇是《${planet.latestTitle ?? '暂无'}》`,
       ),
       '',
-      `如果你想先去最近更新最集中的地方，我已经把跃迁目标锁定到「${primary.name}」。`,
+      `首个入口是 ${primary.name}，但不会自动跳转；你可以先看候选再决定。`,
     ].join('\n'),
-  } satisfies AgentResponse;
+    'discovery',
+    toRecommendationItems(planets, createPlanetRecommendationItem),
+  );
 }
 
 function buildRecentNodesResponse(galaxy: GalaxyData) {
@@ -646,17 +642,18 @@ function buildRecentNodesResponse(galaxy: GalaxyData) {
     } satisfies AgentResponse;
   }
 
-  return {
-    action: createOpenPathAction(primary.href),
-    message: [
+  return createRecommendationResponse(
+    [
       '最近新增的内容可以从这几篇开始：',
       ...nodes.map(
         (node) => `- ${formatDate(node.publishedAt)}《${node.title}》：${node.summary}`,
       ),
       '',
-      `如果你想顺着最新线索直接看下去，我先带你打开《${primary.title}》。`,
+      `首个候选是《${primary.title}》，但不会自动打开；你可以先看候选再决定。`,
     ].join('\n'),
-  } satisfies AgentResponse;
+    'discovery',
+    toRecommendationItems(nodes, createNodeRecommendationItem),
+  );
 }
 
 function buildRelationshipResponse(
@@ -672,38 +669,58 @@ function buildRelationshipResponse(
     context.currentPlanet &&
     context.currentStar
   ) {
+    const currentNode = context.currentNode;
+    const currentPlanet = context.currentPlanet;
+    const currentStar = context.currentStar;
     const siblingNodes = nodes
       .filter(
         (node) =>
-          node.planetId === context.currentPlanet?.id &&
-          node.slug !== context.currentNode?.slug,
+          node.planetId === currentPlanet.id &&
+          node.slug !== currentNode.slug,
       )
       .slice(0, 2);
-    const crossStarNode = nodes.find(
-      (node) => node.starId !== context.currentStar?.id,
-    );
+    const crossStarNode = nodes.find((node) => node.starId !== currentStar.id);
 
-    return {
-      action: createTeleportAction(context.currentPlanet.id, 'planet'),
-      message: [
-        '从当前位置看，这条线索的关系可以这样抓：',
-        `- 当前文章《${context.currentNode.title}》属于「${context.currentPlanet.name}」，隶属「${context.currentStar.name}」主题`,
+    const items: AgentRecommendationItem[] = [
+      {
+        action: createTeleportAction(currentPlanet.id, 'planet'),
+        badge: 'PLANET',
+        description: `回到 ${currentPlanet.name} 的星球视图，顺着同主题节点继续看。`,
+        hint: `${currentStar.name} · ${currentPlanet.nodes.length} 篇内容`,
+        id: `planet:${currentPlanet.id}`,
+        kind: 'primary',
+        title: currentPlanet.name,
+      },
+      ...siblingNodes
+        .slice(0, 1)
+        .map((node) => createNodeRecommendationItem(node, 'secondary')),
+      ...(crossStarNode
+        ? [createNodeRecommendationItem(crossStarNode, 'secondary')]
+        : []),
+    ];
+
+    return createRecommendationResponse(
+      [
+        '从当前位置看，这条内容线索可以这样理解：',
+        `- 当前文章《${currentNode.title}》属于 ${currentStar.name} / ${currentPlanet.name}`,
         ...(siblingNodes.length > 0
           ? [
-              `- 同星球的关键节点是 ${siblingNodes
+              `- 同星球的关键节点还有：${siblingNodes
                 .map((node) => `《${node.title}》`)
                 .join('、')}`,
             ]
           : []),
         ...(crossStarNode
           ? [
-              `- 如果你想横向跳到另一条主题线，可以再看《${crossStarNode.title}》，它来自「${crossStarNode.starName}」`,
+              `- 如果你想横向跳到另一条主题线，可以再看《${crossStarNode.title}》`,
             ]
           : []),
         '',
-        `我已经把跃迁目标锁定到「${context.currentPlanet.name}」，你可以从这里继续顺着关键节点往下走。`,
+        '下面给你一个主入口和延伸候选；点击后再执行跳转。',
       ].join('\n'),
-    } satisfies AgentResponse;
+      'discovery',
+      items,
+    );
   }
 
   const topPlanet = collectPlanetReferences(galaxy)
@@ -726,19 +743,25 @@ function buildRelationshipResponse(
     } satisfies AgentResponse;
   }
 
-  return {
-    action: createTeleportAction(topPlanet.id, 'planet'),
-    message: [
-      '如果从整个花园看关系与关键节点，目前可以这样抓主线：',
-      `- 主干星球是「${topPlanet.name}」，因为它目前承载了 ${topPlanet.nodeCount} 篇内容`,
+  return createRecommendationResponse(
+    [
+      '如果从整座花园看关系和关键节点，目前可以先抓住这条主线：',
+      `- 主干星球是 ${topPlanet.name}，因为它目前承载了 ${topPlanet.nodeCount} 篇内容`,
       ...nodes.slice(0, 3).map(
         (node, index) =>
-          `- 关键节点 ${index + 1}：《${node.title}》，它位于「${node.starName} / ${node.planetName}」`,
+          `- 关键节点 ${index + 1}：《${node.title}》，位于 ${node.starName} / ${node.planetName}`,
       ),
       '',
-      `如果你想顺着主干入场，我先把你送到「${topPlanet.name}」。`,
+      '下面给你一个主入口和两个关键节点候选；点击后再执行跳转。',
     ].join('\n'),
-  } satisfies AgentResponse;
+    'discovery',
+    [
+      createPlanetRecommendationItem(topPlanet, 'primary'),
+      ...nodes
+        .slice(0, 2)
+        .map((node) => createNodeRecommendationItem(node, 'secondary')),
+    ],
+  );
 }
 
 async function loadGalaxyData() {

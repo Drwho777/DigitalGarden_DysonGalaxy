@@ -1,28 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
-
-function parseEnvFile(contents) {
-  const env = {};
-
-  for (const rawLine of contents.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = line.indexOf('=');
-    if (separatorIndex <= 0) {
-      continue;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
-    env[key] = value;
-  }
-
-  return env;
-}
+import { parse as parseDotenv } from 'dotenv';
 
 function readLocalEnvFile() {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -30,7 +9,7 @@ function readLocalEnvFile() {
     return {};
   }
 
-  return parseEnvFile(readFileSync(envPath, 'utf8'));
+  return parseDotenv(readFileSync(envPath, 'utf8'));
 }
 
 function readRuntimeValue(key, fallbackEnv = {}) {

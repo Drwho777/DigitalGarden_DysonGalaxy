@@ -13,6 +13,8 @@ declare global {
     readonly CLOUDFLARE_ACCOUNT_ID?: string;
     readonly SUPABASE_URL?: string;
     readonly SUPABASE_SERVICE_ROLE_KEY?: string;
+    readonly ENABLE_SEMANTIC_RETRIEVAL?: string;
+    readonly EMBEDDING_PROVIDER?: string;
     readonly EMBEDDING_MODEL?: string;
     readonly EMBEDDING_DIMENSIONS?: string;
     readonly PUBLIC_SUPABASE_URL: string;

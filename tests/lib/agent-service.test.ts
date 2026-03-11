@@ -48,7 +48,7 @@ describe('createAgentService', () => {
     const service = createAgentService({ chatResponder, loadGalaxy });
 
     const result = await service.respond({
-      message: '  带我去数字花园日志  ',
+      message: '  带我去数字花园日志 ',
       requestId: 'req-nav-1',
     });
 
@@ -101,7 +101,8 @@ describe('createAgentService', () => {
     expect(result).toEqual({
       status: 200,
       response: {
-        message: '无法在当前星图中定位该目标，我可以带你前往工程、哲学或 ACG 领域。',
+        message:
+          '无法在当前星图中定位该目标，我可以带你前往工程、哲学或 ACG 领域。',
         action: null,
       },
     });
@@ -158,10 +159,22 @@ describe('createAgentService', () => {
       respond: vi.fn().mockResolvedValue({
         status: 200,
         response: {
-          message: '我先推荐你看《Astro 与 Three.js 共存时，首屏性能应该先守住什么？》。',
-          action: {
-            type: 'OPEN_PATH',
-            path: '/read/tech/p_garden/astro-3d-performance',
+          action: null,
+          message: '我先帮你筛出几个候选。',
+          recommendations: {
+            mode: 'recommendation',
+            items: [
+              {
+                action: {
+                  type: 'OPEN_PATH',
+                  path: '/read/tech/p_garden/astro-3d-performance',
+                },
+                description: '先守住数据边界和渲染预算。',
+                id: 'node:astro-3d-performance',
+                kind: 'primary',
+                title: 'Astro 与 Three.js 共存时，首屏性能应该先守住什么？',
+              },
+            ],
           },
         },
       }),
@@ -183,9 +196,9 @@ describe('createAgentService', () => {
       message: '推荐一篇类似的文章',
       requestId: 'req-rec-1',
     });
-    expect(result.response.action).toEqual({
-      type: 'OPEN_PATH',
-      path: '/read/tech/p_garden/astro-3d-performance',
+    expect(result.response.action).toBeNull();
+    expect(result.response.recommendations).toMatchObject({
+      mode: 'recommendation',
     });
   });
 
@@ -199,11 +212,23 @@ describe('createAgentService', () => {
       respond: vi.fn().mockResolvedValue({
         status: 200,
         response: {
-          message: '最近更新更活跃的星球是数字花园日志。',
-          action: {
-            type: 'TELEPORT',
-            targetId: 'p_garden',
-            targetType: 'planet',
+          action: null,
+          message: '我先把最近更新的入口排出来。',
+          recommendations: {
+            mode: 'discovery',
+            items: [
+              {
+                action: {
+                  type: 'TELEPORT',
+                  targetId: 'p_garden',
+                  targetType: 'planet',
+                },
+                description: '数字花园构建记录。',
+                id: 'planet:p_garden',
+                kind: 'primary',
+                title: '数字花园日志',
+              },
+            ],
           },
         },
       }),
@@ -225,10 +250,9 @@ describe('createAgentService', () => {
       message: '最近更新的几个星球',
       requestId: 'req-discovery-1',
     });
-    expect(result.response.action).toEqual({
-      type: 'TELEPORT',
-      targetId: 'p_garden',
-      targetType: 'planet',
+    expect(result.response.action).toBeNull();
+    expect(result.response.recommendations).toMatchObject({
+      mode: 'discovery',
     });
   });
 

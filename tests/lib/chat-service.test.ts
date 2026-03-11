@@ -191,6 +191,7 @@ describe('createChatService', () => {
     const service = createChatService({
       loadContext,
       resolveModel,
+      semanticRetrievalEnabled: () => true,
       searchKnowledge: searchKnowledgeMock,
     });
 
@@ -247,6 +248,99 @@ describe('createChatService', () => {
     expect(generateTextMock.mock.calls[0][0].system).toContain('当前位于首页');
   });
 
+  it('skips semantic retrieval when the flag helper returns false', async () => {
+    const mockModel = { id: 'mock-model:chat' } as any;
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
+
+    generateTextMock.mockResolvedValue({
+      text: '当前这个星球主要聚焦数字花园的构建记录和知识结构设计。',
+    });
+
+    const { createChatService } = await loadChatServiceModule();
+    const loadContext = vi.fn().mockResolvedValue(fixtureLoadedPlanetContext);
+    const service = createChatService({
+      loadContext,
+      resolveModel,
+      searchKnowledge: searchKnowledgeMock,
+      semanticRetrievalEnabled: () => false,
+    });
+
+    await service.respond({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      message: '总结当前星球内容',
+    });
+
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  it('uses semantic retrieval when explicitly enabled', async () => {
+    const mockModel = { id: 'mock-model:chat' } as any;
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
+
+    generateTextMock.mockResolvedValue({
+      text: '当前这个星球主要记录数字花园的构建过程。',
+    });
+    searchKnowledgeMock.mockResolvedValue([]);
+
+    const { createChatService } = await loadChatServiceModule();
+    const loadContext = vi.fn().mockResolvedValue(fixtureLoadedPlanetContext);
+    const service = createChatService({
+      loadContext,
+      resolveModel,
+      searchKnowledge: searchKnowledgeMock,
+      semanticRetrievalEnabled: () => true,
+    });
+
+    await service.respond({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      message: '总结当前星球内容',
+    });
+
+    expect(searchKnowledgeMock).toHaveBeenCalledWith({
+      context: {
+        routeType: 'planet',
+        starId: 'tech',
+        planetId: 'p_garden',
+      },
+      query: '总结当前星球内容',
+    });
+  });
+
+  it('builds a hub overview prompt for whole-garden questions', async () => {
+    const mockModel = { id: 'mock-model:chat' } as any;
+    const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
+
+    generateTextMock.mockResolvedValue({
+      text: '这个花园目前主要有工程与架构、哲学思辨和 ACG 档案库三个板块。',
+    });
+
+    const { createChatService } = await loadChatServiceModule();
+    const loadContext = vi.fn().mockResolvedValue(fixtureLoadedHubContext);
+    const service = createChatService({
+      loadContext,
+      resolveModel,
+      searchKnowledge: searchKnowledgeMock,
+    });
+
+    await service.respond({ message: '这个花园主要有哪些内容' });
+
+    expect(generateTextMock.mock.calls[0][0].system).toContain(
+      '交互意图：content_understanding',
+    );
+    expect(generateTextMock.mock.calls[0][0].system).toContain('当前作用域：hub');
+    expect(generateTextMock.mock.calls[0][0].system).toContain('按主题概览整个花园');
+    expect(generateTextMock.mock.calls[0][0].system).toContain('代表星球');
+    expect(generateTextMock.mock.calls[0][0].system).toContain('最近更新');
+  });
+
   it('builds an onboarding prompt for first-visit guidance', async () => {
     const mockModel = { id: 'mock-model:chat' } as any;
     const resolveModel = vi.fn(() => createCloudflareModelContext(mockModel));
@@ -267,7 +361,11 @@ describe('createChatService', () => {
 
     expect(generateTextMock.mock.calls[0][0].system).toContain('交互意图：onboarding');
     expect(generateTextMock.mock.calls[0][0].system).toContain('当前作用域：hub');
-    expect(generateTextMock.mock.calls[0][0].system).toContain('适合第一次进入的路线');
+    expect(generateTextMock.mock.calls[0][0].system).toContain('先介绍整个花园结构');
+    expect(generateTextMock.mock.calls[0][0].system).toContain(
+      '给出 2 到 4 条适合第一次进入的路线',
+    );
+    expect(generateTextMock.mock.calls[0][0].system).toContain('featuredPlanets');
   });
 
   it('returns a readable response when the provider config is missing', async () => {
@@ -422,6 +520,7 @@ describe('createChatService', () => {
     const service = createChatService({
       loadContext,
       resolveModel,
+      semanticRetrievalEnabled: () => true,
       searchKnowledge: searchKnowledgeMock,
     });
 

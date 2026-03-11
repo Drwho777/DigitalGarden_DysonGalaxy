@@ -5,11 +5,11 @@ import {
   AIConfigError,
   DEFAULT_AI_PROVIDER,
   readRuntimeEnv,
-} from './config';
-import { CLOUDFLARE_OPENAI_COMPAT_BASE_URL } from './provider';
+} from './config.ts';
+import { CLOUDFLARE_OPENAI_COMPAT_BASE_URL } from './provider.ts';
 
 const DEFAULT_GOOGLE_EMBEDDING_MODEL = 'gemini-embedding-001';
-export const EMBEDDING_VECTOR_DIMENSIONS = 1536;
+export const EMBEDDING_VECTOR_DIMENSIONS = 1024;
 
 interface GoogleEmbeddingConfig {
   apiKey: string;
@@ -25,6 +25,7 @@ interface CloudflareEmbeddingConfig {
 }
 
 export type EmbeddingConfig = GoogleEmbeddingConfig | CloudflareEmbeddingConfig;
+type GoogleRetrievalTaskType = 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
 
 function normalizeEnvValue(value: string | undefined) {
   const trimmedValue = value?.trim();
@@ -53,7 +54,9 @@ export function readEmbeddingVectorDimensions(
 function resolveEmbeddingProvider(
   env: Record<string, string | undefined>,
 ): EmbeddingConfig['provider'] {
-  const configuredProvider = normalizeEnvValue(env.AI_PROVIDER)?.toLowerCase();
+  const configuredProvider = normalizeEnvValue(
+    env.EMBEDDING_PROVIDER ?? env.AI_PROVIDER,
+  )?.toLowerCase();
 
   if (!configuredProvider) {
     return DEFAULT_AI_PROVIDER;
@@ -64,7 +67,7 @@ function resolveEmbeddingProvider(
   }
 
   throw new AIConfigError(
-    `Unsupported AI_PROVIDER "${configuredProvider}". Expected "google" or "cloudflare".`,
+    `Unsupported embedding provider "${configuredProvider}". Expected "google" or "cloudflare".`,
   );
 }
 
@@ -144,10 +147,18 @@ export function createEmbeddingModel(
   }).embeddingModel(config.model);
 }
 
-export async function embedQuery(query: string) {
-  const normalizedQuery = query.trim();
-  if (!normalizedQuery) {
-    throw new Error('`query` is required for semantic retrieval.');
+async function embedText(
+  value: string,
+  taskType: GoogleRetrievalTaskType,
+  inputLabel: 'query' | 'text',
+) {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    throw new Error(
+      inputLabel === 'query'
+        ? '`query` is required for semantic retrieval.'
+        : '`text` is required for document embeddings.',
+    );
   }
 
   const env = readRuntimeEnv();
@@ -160,11 +171,11 @@ export async function embedQuery(query: string) {
         ? {
             google: {
               outputDimensionality: vectorDimensions,
-              taskType: 'RETRIEVAL_QUERY',
+              taskType,
             },
           }
         : undefined,
-    value: normalizedQuery,
+    value: normalizedValue,
   });
 
   if (embedding.length !== vectorDimensions) {
@@ -174,4 +185,12 @@ export async function embedQuery(query: string) {
   }
 
   return embedding;
+}
+
+export async function embedQuery(query: string) {
+  return embedText(query, 'RETRIEVAL_QUERY', 'query');
+}
+
+export async function embedDocument(text: string) {
+  return embedText(text, 'RETRIEVAL_DOCUMENT', 'text');
 }

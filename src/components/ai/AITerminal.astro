@@ -48,7 +48,7 @@ const { context = { routeType: 'hub' } } = Astro.props;
             <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2zm0 3.8l7 14.2H5l7-14.2z"/></svg>
             <span class="text-glow-cyan">SYS.UPLINK_ESTABLISHED</span>
           </div>
-          <p class="mt-1 text-[10px] uppercase font-mono tracking-widest text-[var(--accent-orange)]/80">Local Relay Node / Ready</p>
+          <p class="mt-1 text-[10px] uppercase font-mono tracking-widest text-[var(--accent-orange)]/80">Deterministic navigation / recommendation handoff</p>
         </div>
 
         <button
@@ -83,10 +83,7 @@ const { context = { routeType: 'hub' } } = Astro.props;
           <div class="mt-1 font-mono text-xs text-[var(--accent-cyan)] opacity-70">&gt;</div>
           <div class="max-w-[90%] border-l-2 border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/5 px-3 py-2 text-sm leading-6 text-[#A0C0E0] shadow-[inset_2px_0_10px_rgba(0,191,255,0.05)]">
             <span class="font-mono text-[10px] text-[var(--accent-cyan)] mb-1 block">SYS // BOOT_SEQ</span>
-            星系全景图已展开。您可以下达导航指令，如 
-            <span class="text-[var(--accent-orange)] font-mono">/goto ACG</span> 
-            或 
-            <span class="text-[var(--accent-orange)] font-mono">/open log</span> 。
+            星系全景图已经展开。你可以试试“打开数字花园日志”，或说“推荐类似文章”，我会先给你候选再执行跳转。
           </div>
         </div>
       </div>

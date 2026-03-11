@@ -45,8 +45,10 @@ AI_API_KEY=your_provider_api_key_here
 AI_ACCOUNT_ID=
 SUPABASE_URL=your_supabase_project_url_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
-EMBEDDING_MODEL=gemini-embedding-001
-EMBEDDING_DIMENSIONS=1536
+ENABLE_SEMANTIC_RETRIEVAL=false
+EMBEDDING_PROVIDER=cloudflare
+EMBEDDING_MODEL=@cf/qwen/qwen3-embedding-0.6b
+EMBEDDING_DIMENSIONS=1024
 ```
 
 说明：
@@ -57,8 +59,11 @@ EMBEDDING_DIMENSIONS=1536
 - 兼容迁移：`google` 可回退到 `GOOGLE_GENERATIVE_AI_API_KEY`，`cloudflare` 可回退到 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`
 - 这是服务端环境变量，只给 `/api/agent` 使用，不要写成 `PUBLIC_` 前缀
 - `SUPABASE_SERVICE_ROLE_KEY` 只给服务端 observability / pgvector 检索使用，不要暴露到前端
-- `EMBEDDING_MODEL` 用于助手的向量检索链路；默认建议 `google` 使用 `gemini-embedding-001`
-- `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1536`
+- `ENABLE_SEMANTIC_RETRIEVAL` 是唯一的运行时开关；默认保持 `false`，只在完成 backfill 和 `docs/qa/2026-03-11-retrieval-quality-checklist.md` 后再手动切到 `true`
+- `EMBEDDING_PROVIDER` 可选；不填时默认沿用 `AI_PROVIDER`，需要把聊天模型和 embedding 模型分开时再单独指定
+- `EMBEDDING_MODEL` 用于助手的向量检索链路；当前默认示例使用 Cloudflare `@cf/qwen/qwen3-embedding-0.6b`
+- `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1024`
+- 如果后续要切换 embedding 维度，不是只改 `.env` 就够了；还需要同步执行数据库 migration、重建向量索引，并对 `node_embeddings` 做一次全量 backfill
 - 修改 `.env` 后需要重启开发服务
 
 ### 3. 启动开发服务
@@ -86,11 +91,36 @@ npm run build
 npm run preview
 ```
 
+## 离线索引与 Embedding 回填
+
+`scripts/sync-garden-index.ts` 是离线操作脚本，只给本地运维或 CI 用，不会在浏览器端或 SSR 请求链路里触发。
+
+```bash
+npm run sync:garden:index -- --dry-run
+npm run sync:garden:index -- --with-embeddings
+npm run sync:garden:index -- --with-embeddings --changed-only
+```
+
+说明：
+- `--dry-run` 只扫描 Markdown 与内容哈希，不写入 Supabase
+- `--with-embeddings` 会先同步 `nodes`，再切块并通过 `replace_node_embeddings_for_node` 做事务性替换
+- `--changed-only` 只处理 `content_hash` 发生变化的节点，适合增量回填
+- 运行前需要准备 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 以及可用的 embedding provider 配置
+
+## 语义检索启用门
+
+向量检索目前已经接到服务端内容理解链路，但仍然保持显式门控：
+
+- 只有 `ENABLE_SEMANTIC_RETRIEVAL=true` 才会启用运行时语义检索
+- 检索只作为结构化上下文的补充，不替代本地 deterministic scope
+- 在切换开关前，先完成 `node_embeddings` backfill，并复跑 [docs/qa/2026-03-11-retrieval-quality-checklist.md](./docs/qa/2026-03-11-retrieval-quality-checklist.md)
+
 ## Vercel 远端 assistant_events 验收
 
 使用 `npm run test:integration:assistant-events:vercel` 可以验证：
 - 真实的 Vercel `/api/agent` 请求能够返回
 - 对应请求会在 `assistant_events` 表里生成新记录
+- `assistant_events` 不应只出现 `navigation`；Phase 2A 的问题最终也应写成 `content_understanding` 或 `onboarding`
 
 必需环境变量：
 
@@ -102,6 +132,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 说明：
 
+- 建议在部署完 Phase 2A 改动后立即跑一次这个远端测试，确认 observability 没有只覆盖导航请求。
+- 远端测试会给每条消息附加唯一 fingerprint，并按这条完整消息去轮询 `assistant_events`，避免把旧记录误判成当前请求。
+- `assistant_events` 的写入是最终一致的；远端验收默认会轮询 10-30 秒再判定是否观测到目标行。
 - `VERCEL_AGENT_API_URL` 填站点基址，不要写成完整的 `/api/agent` 路径。
 - 如果你填的是 `my-project.vercel.app`，脚本会自动规范化成 `https://my-project.vercel.app`。
 - `localhost`、`127.0.0.1` 和 `::1` 会被拒绝，避免误打到本地服务。

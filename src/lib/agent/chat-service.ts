@@ -1,12 +1,17 @@
 import { generateText } from 'ai';
 import type { AgentResponse } from '../../types/agent';
 import type { AgentRequestContextInput } from '../../types/agent-context';
-import { AIConfigError, readAIConfigSummary } from '../ai/config';
+import {
+  AIConfigError,
+  readAIConfigSummary,
+  readRuntimeEnv,
+} from '../ai/config';
 import {
   resolveLanguageModelContext,
   type ResolvedLanguageModel,
 } from '../ai/provider';
 import { logAgentError } from '../observability/agent-log';
+import { isSemanticRetrievalEnabled } from './semantic-retrieval';
 import {
   resolveInteractionIntent,
   type InteractionIntent,
@@ -191,6 +196,44 @@ function renderCurrentNode(context: LoadedAgentContext) {
   return sections.join('\n');
 }
 
+function renderFeaturedPlanets(context: LoadedAgentContext) {
+  if (context.scope !== 'hub') {
+    return undefined;
+  }
+
+  if (context.globalOverview.featuredPlanets.length === 0) {
+    return ['featuredPlanets:', '- 当前还没有可用的代表星球。'].join('\n');
+  }
+
+  return [
+    'featuredPlanets:',
+    ...context.globalOverview.featuredPlanets.map(
+      (planet) =>
+        `- ${planet.name}（planet:${planet.id}，star:${planet.starId}，pageType:${planet.pageType}）: ${planet.description}；nodeCount=${planet.nodeCount}；所属恒星=${planet.starName}`,
+    ),
+  ].join('\n');
+}
+
+function renderRecentNodes(context: LoadedAgentContext) {
+  if (context.scope !== 'hub') {
+    return undefined;
+  }
+
+  if (context.globalOverview.recentNodes.length === 0) {
+    return ['recentNodes（最近更新）:', '- 当前还没有可用的最近更新。'].join(
+      '\n',
+    );
+  }
+
+  return [
+    'recentNodes（最近更新）:',
+    ...context.globalOverview.recentNodes.map(
+      (node) =>
+        `- ${node.title}（slug:${node.slug}，planet:${node.planetId}，star:${node.starId}）: ${node.summary}`,
+    ),
+  ].join('\n');
+}
+
 function renderStructuredContext(
   intent: InteractionIntent,
   context: LoadedAgentContext,
@@ -205,6 +248,8 @@ function renderStructuredContext(
     renderCurrentPlanet(context),
     renderCurrentStar(context),
     renderGlobalOverview(context, globalOverviewVerbosity),
+    renderFeaturedPlanets(context),
+    renderRecentNodes(context),
   ]
     .filter((section): section is string => Boolean(section))
     .join('\n\n');
@@ -247,7 +292,9 @@ function createIntentRules(
           ].join('\n');
         case 'hub':
           return [
-            '优先介绍整个花园的结构和建议入口，再给出 2 到 4 条适合第一次进入的路线。',
+            '先介绍整个花园结构。',
+            '给出 2 到 4 条适合第一次进入的路线，每条路线都必须锚定真实星球或文章。',
+            '优先使用 featuredPlanets 组织路线，必要时再用 recentNodes 补充入口。',
             '不要假装已经替用户执行跳转。',
           ].join('\n');
       }
@@ -265,8 +312,10 @@ function createIntentRules(
           ].join('\n');
         case 'hub':
           return [
-            '当前没有单篇文章或单个星球上下文。',
+            '按主题概览整个花园，而不是缩成单篇文章摘要。',
+            '先说明主要内容板块，再给出每个板块的代表星球或代表文章。',
             '如果用户要求“总结当前页面”，请明确说明当前位于首页，并改为介绍整个花园结构。',
+            '如果上下文里有 recentNodes，可以用它补充“最近更新”。',
           ].join('\n');
       }
     case 'recommendation':
@@ -323,6 +372,7 @@ export function createChatService(options: {
     input?: AgentRequestContextInput,
   ) => Promise<LoadedAgentContext>;
   resolveModel?: () => ResolvedLanguageModel;
+  semanticRetrievalEnabled?: () => boolean;
   searchKnowledge?: (input: {
     context?: AgentRequestContextInput;
     query: string;
@@ -332,6 +382,8 @@ export function createChatService(options: {
   const {
     loadContext = loadStructuredAgentContext,
     resolveModel = resolveLanguageModelContext,
+    semanticRetrievalEnabled = () =>
+      isSemanticRetrievalEnabled(readRuntimeEnv()),
     searchKnowledge = loadSemanticKnowledge,
     textGenerator = generateText,
   } = options;
@@ -400,6 +452,7 @@ export function createChatService(options: {
 
         if (
           interactionIntent === 'content_understanding' &&
+          semanticRetrievalEnabled() &&
           structuredContext.scope !== 'node'
         ) {
           try {

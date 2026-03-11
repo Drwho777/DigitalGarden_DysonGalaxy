@@ -27,7 +27,7 @@ async function loadEmbeddingModule() {
   return import('../../src/lib/ai/embedding');
 }
 
-describe('embedQuery', () => {
+describe('embedding helpers', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -44,19 +44,20 @@ describe('embedQuery', () => {
     });
   });
 
-  it('requests google embeddings with the configured vector dimensions', async () => {
-    process.env.AI_PROVIDER = 'google';
+  it('requests google embeddings with the configured vector dimensions even when embedding provider is decoupled from chat provider', async () => {
+    process.env.AI_PROVIDER = 'cloudflare';
+    process.env.EMBEDDING_PROVIDER = 'google';
     process.env.AI_API_KEY = 'google-key';
     process.env.EMBEDDING_MODEL = 'gemini-embedding-001';
-    process.env.EMBEDDING_DIMENSIONS = '1536';
+    process.env.EMBEDDING_DIMENSIONS = '1024';
     embedMock.mockResolvedValue({
-      embedding: Array.from({ length: 1536 }, () => 0.01),
+      embedding: Array.from({ length: 1024 }, () => 0.01),
     });
 
     const { embedQuery } = await loadEmbeddingModule();
     const embedding = await embedQuery('garden overview');
 
-    expect(embedding).toHaveLength(1536);
+    expect(embedding).toHaveLength(1024);
     expect(createGoogleGenerativeAIMock).toHaveBeenCalledWith({
       apiKey: 'google-key',
     });
@@ -67,7 +68,7 @@ describe('embedQuery', () => {
       model: { kind: 'google-embedding-model' },
       providerOptions: {
         google: {
-          outputDimensionality: 1536,
+          outputDimensionality: 1024,
           taskType: 'RETRIEVAL_QUERY',
         },
       },
@@ -76,19 +77,20 @@ describe('embedQuery', () => {
   });
 
   it('fails fast when a cloudflare embedding model does not match the database vector dimensions', async () => {
-    process.env.AI_PROVIDER = 'cloudflare';
+    process.env.AI_PROVIDER = 'google';
+    process.env.EMBEDDING_PROVIDER = 'cloudflare';
     process.env.AI_API_KEY = 'cloudflare-key';
     process.env.AI_ACCOUNT_ID = 'account-123';
     process.env.EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5';
-    process.env.EMBEDDING_DIMENSIONS = '1536';
+    process.env.EMBEDDING_DIMENSIONS = '1024';
     embedMock.mockResolvedValue({
-      embedding: Array.from({ length: 1024 }, () => 0.01),
+      embedding: Array.from({ length: 1536 }, () => 0.01),
     });
 
     const { embedQuery } = await loadEmbeddingModule();
 
     await expect(embedQuery('garden overview')).rejects.toThrow(
-      'produced 1024 dimensions, but the database expects 1536',
+      'produced 1536 dimensions, but the database expects 1024',
     );
     expect(createOpenAICompatibleMock).toHaveBeenCalledWith({
       apiKey: 'cloudflare-key',
@@ -102,6 +104,32 @@ describe('embedQuery', () => {
       model: { kind: 'cloudflare-embedding-model' },
       providerOptions: undefined,
       value: 'garden overview',
+    });
+  });
+
+  it('creates retrieval-document embeddings for content indexing', async () => {
+    process.env.AI_PROVIDER = 'cloudflare';
+    process.env.EMBEDDING_PROVIDER = 'google';
+    process.env.AI_API_KEY = 'google-key';
+    process.env.EMBEDDING_MODEL = 'gemini-embedding-001';
+    process.env.EMBEDDING_DIMENSIONS = '1024';
+    embedMock.mockResolvedValue({
+      embedding: Array.from({ length: 1024 }, () => 0.01),
+    });
+
+    const { embedDocument } = await loadEmbeddingModule();
+    const embedding = await embedDocument('section text');
+
+    expect(embedding).toHaveLength(1024);
+    expect(embedMock).toHaveBeenCalledWith({
+      model: { kind: 'google-embedding-model' },
+      providerOptions: {
+        google: {
+          outputDimensionality: 1024,
+          taskType: 'RETRIEVAL_DOCUMENT',
+        },
+      },
+      value: 'section text',
     });
   });
 });
