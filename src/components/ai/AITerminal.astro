@@ -8,62 +8,57 @@ interface Props {
 const { context = { routeType: 'hub' } } = Astro.props;
 ---
 
-<div class="pointer-events-auto fixed bottom-6 left-6 z-20">
+<div class="pointer-events-auto fixed bottom-6 left-0 z-20 sm:bottom-8">
+  <!-- Edge-Aligned Cyber Tab -->
   <button
     id="ai-terminal-fab"
     type="button"
-    class="glass-panel flex h-14 w-14 items-center justify-center rounded-full transition duration-200 hover:scale-105 hover:shadow-[0_0_20px_rgba(255,140,0,0.35)]"
+    class="group relative flex h-12 w-14 items-center justify-end pr-3 rounded-r-md bg-[#000814]/90 backdrop-blur-md border-y border-r border-[var(--accent-cyan)]/30 transition-all duration-300 hover:w-16 hover:border-[var(--accent-cyan)] hover:shadow-[0_0_15px_rgba(0,191,255,0.3)] hover:bg-[#001020]"
     aria-label="打开 Dyson Brain 终端"
   >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      stroke-width="2"
-      class="h-5 w-5 text-[var(--accent-cyan)]"
-      aria-hidden="true"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-    </svg>
-    <span class="absolute right-0 top-0 h-3 w-3 animate-pulse rounded-full border-2 border-[var(--bg-base)] bg-emerald-400"></span>
+    <!-- Hard Sci-fi Edge Detail -->
+    <div class="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent-cyan)] opacity-70 group-hover:opacity-100 group-hover:shadow-[0_0_8px_var(--accent-cyan)] transition-all"></div>
+    
+    <!-- Angled Cutout Details -->
+    <div class="absolute right-0 top-0 w-2 h-2 bg-transparent border-t border-r border-[#000205] -mr-[1px] -mt-[1px]"></div>
+    <div class="absolute right-0 bottom-0 w-2 h-2 bg-transparent border-b border-r border-[#000205] -mr-[1px] -mb-[1px]"></div>
+
+    <!-- Terminal Prompt Icon -->
+    <span class="font-mono text-lg font-bold text-[var(--accent-cyan)] group-hover:text-glow-cyan transition-all">&gt;_</span>
+    
+    <!-- Uplink Status Indicator -->
+    <span class="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full border border-[#00050a] bg-[var(--accent-orange)] shadow-[0_0_8px_var(--accent-orange)]"></span>
   </button>
 
+  <!-- Holographic Terminal Panel -->
   <section
     id="ai-terminal"
     data-agent-context={JSON.stringify(context)}
-    class="glass-panel hidden w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden"
+    class="cyber-panel terminal-enter hidden w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden sm:w-[420px] sm:max-w-none origin-bottom-left ml-4"
     aria-label="Dyson Brain Uplink"
   >
-    <div class="border-b border-white/10 px-5 py-4">
-      <div class="flex items-center justify-between gap-4">
+    <!-- Sci-Fi Header -->
+    <div class="relative border-b border-[var(--accent-cyan)]/20 bg-[#000814]/80 px-5 py-3 backdrop-blur-md">
+      <!-- Decorative Scanline Overlay on Header -->
+      <div class="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,191,255,0.05)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
+      
+      <div class="relative flex items-center justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.3em] text-[var(--accent-orange)]">
-            <span>Dyson Brain Uplink</span>
-            <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
+          <div class="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.2em] text-[var(--accent-cyan)]">
+            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2zm0 3.8l7 14.2H5l7-14.2z"/></svg>
+            <span class="text-glow-cyan">SYS.UPLINK_ESTABLISHED</span>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Rule-based navigation relay / local MVP</p>
+          <p class="mt-1 text-[10px] uppercase font-mono tracking-widest text-[var(--accent-orange)]/80">Local Relay Node / Ready</p>
         </div>
 
         <button
           id="ai-terminal-close"
           type="button"
-          class="rounded-full border border-white/10 p-2 text-slate-400 transition-colors hover:border-[var(--accent-orange)]/40 hover:text-[var(--accent-orange)]"
+          class="group relative h-8 w-8 overflow-hidden rounded-sm bg-black/40 border border-[var(--accent-cyan)]/30 text-[var(--accent-cyan)] transition-all hover:border-[var(--accent-orange)] hover:text-[var(--accent-orange)] hover:shadow-[0_0_10px_var(--accent-orange)]"
           aria-label="收起 Dyson Brain 终端"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            class="h-4 w-4"
-            aria-hidden="true"
-          >
+          <div class="absolute inset-0 bg-[var(--accent-orange)]/10 translate-y-full transition-transform group-hover:translate-y-0"></div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="relative z-10 mx-auto h-4 w-4">
             <line x1="18" x2="6" y1="6" y2="18"></line>
             <line x1="6" x2="18" y1="6" y2="18"></line>
           </svg>
@@ -71,32 +66,57 @@ const { context = { routeType: 'hub' } } = Astro.props;
       </div>
     </div>
 
-    <div class="flex flex-col gap-4 p-5">
+    <!-- Terminal Body -->
+    <div class="relative flex flex-col gap-4 bg-[#000205]/95 p-5 backdrop-blur-xl">
+      <!-- Global Scanline effect for terminal body -->
+      <div class="scanlines absolute inset-0 z-0 pointer-events-none opacity-20"></div>
+
+      <!-- History Log -->
       <div
         id="ai-terminal-history"
-        class="flex h-56 flex-col gap-3 overflow-y-auto pr-1"
+        class="cyber-scrollbar z-10 flex h-64 flex-col gap-4 overflow-y-auto pr-2"
         role="log"
         aria-live="polite"
       >
-        <div class="max-w-[90%] rounded-xl border-l-2 border-[var(--accent-orange)] bg-[rgba(255,140,0,0.12)] px-4 py-3 text-sm leading-6 text-slate-200">
-          星系全景图已展开。你可以试试“带我去 ACG”或“打开数字花园日志”。
+        <!-- System Welcome Message -->
+        <div class="flex gap-3">
+          <div class="mt-1 font-mono text-xs text-[var(--accent-cyan)] opacity-70">&gt;</div>
+          <div class="max-w-[90%] border-l-2 border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/5 px-3 py-2 text-sm leading-6 text-[#A0C0E0] shadow-[inset_2px_0_10px_rgba(0,191,255,0.05)]">
+            <span class="font-mono text-[10px] text-[var(--accent-cyan)] mb-1 block">SYS // BOOT_SEQ</span>
+            星系全景图已展开。您可以下达导航指令，如 
+            <span class="text-[var(--accent-orange)] font-mono">/goto ACG</span> 
+            或 
+            <span class="text-[var(--accent-orange)] font-mono">/open log</span> 。
+          </div>
         </div>
       </div>
 
-      <form id="ai-terminal-form" class="flex gap-2">
-        <input
-          id="ai-terminal-input"
-          type="text"
-          class="min-w-0 flex-1 rounded-xl border border-[var(--accent-cyan)]/30 bg-black/45 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[var(--accent-orange)]"
-          placeholder="输入导航指令或专题名称..."
-          autocomplete="off"
-        />
+      <!-- Sci-Fi Input Group -->
+      <form id="ai-terminal-form" class="z-10 mt-2 flex gap-3">
+        <div class="relative flex-1 group">
+          <!-- Input glow border effect -->
+          <div class="absolute -inset-0.5 rounded-sm bg-gradient-to-r from-[var(--accent-cyan)] to-transparent opacity-30 blur-[2px] transition-opacity group-focus-within:opacity-100"></div>
+          <input
+            id="ai-terminal-input"
+            type="text"
+            class="relative w-full border-l-2 border-y border-r border-y-[var(--accent-cyan)]/30 border-r-[var(--accent-cyan)]/30 border-l-[var(--accent-cyan)] bg-[#000a14] px-4 py-2.5 text-sm font-mono text-[var(--accent-cyan)] outline-none transition-all placeholder:text-[var(--accent-cyan)]/30 focus:bg-[#001020] focus:text-white"
+            placeholder="AWAITING COMMAND..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        
         <button
           id="ai-terminal-send"
           type="submit"
-          class="rounded-xl border border-[var(--accent-orange)]/40 bg-[rgba(255,140,0,0.16)] px-4 py-2 text-sm font-medium text-[var(--accent-orange)] transition-colors hover:bg-[rgba(255,140,0,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+          class="cyber-button relative shrink-0 overflow-hidden bg-[var(--accent-cyan)]/10 px-5 text-sm font-bold tracking-widest text-[var(--accent-cyan)] outline-none transition-all disabled:cursor-not-allowed disabled:opacity-50 hover:bg-[var(--accent-cyan)]/20 hover:text-white hover:shadow-[0_0_15px_rgba(0,191,255,0.4)]"
         >
-          发送
+          <span class="relative z-10 flex items-center gap-2">
+            EXEC
+            <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <!-- Glitch corner detail -->
+          <div class="absolute bottom-0 right-0 h-1.5 w-1.5 bg-[var(--accent-cyan)]"></div>
         </button>
       </form>
     </div>

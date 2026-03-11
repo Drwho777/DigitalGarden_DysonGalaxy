@@ -159,3 +159,199 @@ button {
   font-family: "Noto Serif SC", serif;
   color: var(--text-soft);
 }
+
+/* -------------------------------------
+   Capaldi Clockwork Spiral Vortex (Absolute Zero-Cost GPU)
+-------------------------------------- */
+.vortex-container {
+  /* Flattened everything, perspective removed */
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000205;
+}
+
+/* 
+  One Single Flat Node for the entire tunnel limit.
+  We animate only `scale` and `rotate`, completely eliminating Z-axis repaints and layer blending.
+*/
+.clockwork-tunnel {
+  position: absolute;
+  width: 250vmax;
+  height: 250vmax;
+  
+  /* Create an optical illusion of a spiral using repeating-radial-gradients */
+  background: 
+    repeating-radial-gradient(
+      circle at center,
+      transparent 0,
+      transparent 40px,
+      rgba(100, 160, 220, 0.1) 40px,
+      rgba(100, 160, 220, 0.2) 42px,
+      rgba(40, 80, 120, 0.4) 44px,
+      transparent 45px
+    ),
+    repeating-conic-gradient(
+      from 0deg,
+      transparent 0deg 8deg,
+      rgba(100, 150, 200, 0.05) 8deg 10deg,
+      transparent 10deg 30deg
+    );
+  
+  /* Base SVG clockwork repeated as a tiling texture without DOM */
+  background-image: 
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='49' stroke='%2368A' stroke-width='0.5' fill='none' opacity='0.7'/%3E%3Ccircle cx='50' cy='50' r='45' stroke='%239BD' stroke-width='1.5' fill='none' stroke-dasharray='3 6'/%3E%3Ccircle cx='50' cy='50' r='33' stroke='%23579' stroke-width='0.5' fill='none'/%3E%3Cg fill='%23BDF' font-family='serif' font-size='8' text-anchor='middle' dominant-baseline='central'%3E%3Ctext x='50' y='12'%3EXII%3C/text%3E%3Ctext x='88' y='50'%3EIII%3C/text%3E%3Ctext x='50' y='88'%3EVI%3C/text%3E%3Ctext x='12' y='50'%3EIX%3C/text%3E%3C/g%3E%3C/svg%3E"),
+    repeating-radial-gradient(circle at center, transparent 0 40px, rgba(40, 80, 120, 0.2) 42px, transparent 45px);
+  background-size: 400px 400px, 100% 100%;
+  background-position: center center;
+  
+  transform-origin: center center;
+  animation: flat-tunnel-spin 5.4s linear infinite;
+  will-change: transform;
+}
+
+@keyframes flat-tunnel-spin {
+  0% { transform: scale(0.1) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: scale(5) rotate(-90deg); opacity: 0; }
+}
+
+/* The Golden Time Vortex Heart */
+.vortex-core-glow {
+  position: absolute;
+  width: 40vmax;
+  height: 40vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 120, 0.8) 0%, rgba(150, 100, 40, 0.4) 30%, transparent 60%);
+  animation: flat-core-pulse 3s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes flat-core-pulse {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+
+/* Deep Space Vignette masks the flat edges to fake depth */
+.vortex-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 10%, #000205 75%);
+  z-index: 40;
+}
+
+/* Flat Asteroids */
+.asteroid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.ast-1 {
+  width: 60px;
+  height: 60px;
+  margin-top: -30px;
+  margin-left: -30px;
+  background-color: #1a2230; 
+  animation: flat-ast-fly 4s linear infinite;
+}
+
+.ast-2 {
+  width: 30px;
+  height: 30px;
+  margin-top: -15px;
+  margin-left: -15px;
+  background-color: #253040;
+  animation: flat-ast-fly-2 4.5s linear infinite;
+  animation-delay: -2s;
+}
+
+@keyframes flat-ast-fly {
+  0% { transform: translate(30vw, -20vh) scale(0); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(60vw, -10vh) scale(3); opacity: 0; }
+}
+
+@keyframes flat-ast-fly-2 {
+  0% { transform: translate(-20vw, 30vh) scale(0); opacity: 0; }
+  20% { opacity: 0.8; }
+  80% { opacity: 0.8; }
+  100% { transform: translate(-50vw, 15vh) scale(2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clockwork-tunnel, .vortex-core-glow, .asteroid {
+    animation: none !important;
+    display: none !important;
+  }
+}
+
+/* -------------------------------------
+   Terminal UI & Cyberpunk Aesthetics
+-------------------------------------- */
+.terminal-enter {
+  animation: terminal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  /* Origin is set in HTML class as origin-bottom-left */
+}
+
+.terminal-exit {
+  animation: terminal-pop-out 0.25s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+@keyframes terminal-pop {
+  0% { opacity: 0; transform: scale(0.9) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes terminal-pop-out {
+  0% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.9) translateY(10px); }
+}
+
+/* Chamfered Sci-Fi Panel (Clip-path) */
+.cyber-panel {
+  /* Cute off Top-Right and Bottom-Left */
+  clip-path: polygon(
+    0 12px, 12px 0, 
+    100% 0, 100% calc(100% - 12px), 
+    calc(100% - 12px) 100%, 0 100%
+  );
+  border: 1px solid rgba(0, 191, 255, 0.2);
+  border-top-color: rgba(0, 191, 255, 0.6);
+  border-right-color: rgba(0, 191, 255, 0.6);
+  box-shadow: 0 0 30px rgba(0, 191, 255, 0.1);
+}
+
+.cyber-button {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 8px rgba(0, 191, 255, 0.6);
+}
+
+/* Hardcore Sci-Fi Scrollbar for Terminal */
+.cyber-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cyber-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 191, 255, 0.05);
+}
+
+.cyber-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent-cyan);
+  border-radius: 0;
+}
