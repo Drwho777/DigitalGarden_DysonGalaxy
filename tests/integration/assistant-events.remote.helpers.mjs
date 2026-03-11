@@ -43,7 +43,44 @@ function readRuntimeValue(key, fallbackEnv = {}) {
   return fallbackValue || undefined;
 }
 
-export function readAssistantEventsRemoteTestConfig() {
+function normalizeApiBaseUrl(value) {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return undefined;
+  }
+
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//iu.test(trimmedValue)
+    ? trimmedValue
+    : `https://${trimmedValue}`;
+
+  return withProtocol.replace(/\/+$/u, '');
+}
+
+function assertRemoteApiBaseUrl(apiBaseUrl, envKey) {
+  if (!apiBaseUrl) {
+    return;
+  }
+
+  const url = new URL(apiBaseUrl);
+  const hostname = url.hostname.toLowerCase();
+  const isLoopbackHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]';
+
+  if (isLoopbackHost) {
+    throw new Error(
+      `${envKey} must point to a remote deployment URL, not ${hostname}.`,
+    );
+  }
+}
+
+export function readAssistantEventsRemoteTestConfig(options = {}) {
+  const {
+    apiBaseUrlEnvKey = 'TARGET_AGENT_API_URL',
+    fallbackApiBaseUrl = 'http://127.0.0.1:4321',
+  } = options;
   const localEnv = readLocalEnvFile();
   const timeoutMs = Number.parseInt(
     readRuntimeValue('ASSISTANT_EVENTS_TEST_TIMEOUT_MS', localEnv) ?? '12000',
@@ -54,11 +91,17 @@ export function readAssistantEventsRemoteTestConfig() {
       String(Math.min(timeoutMs, 8000)),
     10,
   );
+  const configuredApiBaseUrl = readRuntimeValue(apiBaseUrlEnvKey, localEnv);
+  const apiBaseUrl = normalizeApiBaseUrl(
+    configuredApiBaseUrl ?? fallbackApiBaseUrl,
+  );
+
+  if (configuredApiBaseUrl && apiBaseUrlEnvKey === 'VERCEL_AGENT_API_URL') {
+    assertRemoteApiBaseUrl(apiBaseUrl, apiBaseUrlEnvKey);
+  }
 
   return {
-    apiBaseUrl:
-      readRuntimeValue('TARGET_AGENT_API_URL', localEnv) ??
-      'http://127.0.0.1:4321',
+    apiBaseUrl,
     requestTimeoutMs,
     serviceRoleKey: readRuntimeValue('SUPABASE_SERVICE_ROLE_KEY', localEnv),
     supabaseUrl:

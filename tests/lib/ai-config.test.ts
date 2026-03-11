@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AIConfigError,
   DEFAULT_GOOGLE_MODEL,
+  mergeRuntimeEnvSources,
   resolveAIConfig,
   type RuntimeEnv,
 } from '../../src/lib/ai/config';
@@ -18,6 +19,30 @@ function createEnv(overrides: RuntimeEnv = {}): RuntimeEnv {
     ...overrides,
   };
 }
+
+describe('readRuntimeEnv', () => {
+  it('lets runtime env override build-time env snapshots', () => {
+    expect(
+      mergeRuntimeEnvSources(
+        {
+          AI_API_KEY: 'build-key',
+          AI_MODEL: 'build-model',
+          AI_PROVIDER: 'google',
+        },
+        {
+          AI_MODEL: '@cf/meta/llama-3.1-8b-instruct',
+          AI_PROVIDER: 'cloudflare',
+        },
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        AI_API_KEY: 'build-key',
+        AI_MODEL: '@cf/meta/llama-3.1-8b-instruct',
+        AI_PROVIDER: 'cloudflare',
+      }),
+    );
+  });
+});
 
 describe('resolveAIConfig', () => {
   it('uses generic google config when provided', () => {

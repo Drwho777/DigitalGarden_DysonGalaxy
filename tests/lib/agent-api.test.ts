@@ -1,16 +1,45 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const respondMock = vi.fn();
 const logAgentRequestMock = vi.fn();
 const logAgentResponseMock = vi.fn();
 const logAgentErrorMock = vi.fn();
+const logAssistantEventDbInsertTimedOutMock = vi.fn();
 const recordAssistantEventMock = vi.fn();
+
+vi.mock('../../src/lib/agent/content-intent', () => ({
+  resolveInteractionIntent: (message: string) => {
+    const normalized = message.trim().toLowerCase();
+
+    if (normalized.startsWith('open ')) {
+      return 'navigation';
+    }
+
+    if (normalized.includes('recommend')) {
+      return 'recommendation';
+    }
+
+    if (normalized.includes('recent')) {
+      return 'discovery';
+    }
+
+    if (normalized.includes('start here')) {
+      return 'onboarding';
+    }
+
+    if (normalized.includes('summarize')) {
+      return 'content_understanding';
+    }
+
+    return 'general_chat';
+  },
+}));
 
 vi.mock('../../src/lib/agent/service', () => ({
   agentService: {
     respond: respondMock,
   },
-  shouldRequireTeleportTool: (message: string) => /打开|带我|前往/.test(message),
+  shouldRequireTeleportTool: (message: string) => /^open /i.test(message.trim()),
 }));
 
 vi.mock('../../src/lib/ai/config', () => ({
@@ -28,6 +57,7 @@ vi.mock('../../src/lib/observability/agent-log', () => ({
 }));
 
 vi.mock('../../src/lib/observability/assistant-events', () => ({
+  logAssistantEventDbInsertTimedOut: logAssistantEventDbInsertTimedOutMock,
   recordAssistantEvent: recordAssistantEventMock,
 }));
 
@@ -36,15 +66,38 @@ async function loadRoute() {
 }
 
 const phase2Cases = [
-  '总结当前页面',
-  '总结当前星球内容',
-  '这个花园主要有哪些内容',
-  '我是第一次来，怎么逛比较合适',
+  {
+    expectedIntent: 'content_understanding',
+    message: 'summarize current page',
+  },
+  {
+    expectedIntent: 'onboarding',
+    message: 'how do I start here?',
+  },
 ] as const;
 
 const phase3Cases = [
-  { expectedIntent: 'recommendation', message: '推荐一篇类似的文章' },
-  { expectedIntent: 'discovery', message: '最近更新的几个星球' },
+  {
+    actionTargetId: '/read/tech/p_garden/astro-3d-performance',
+    actionType: 'OPEN_PATH',
+    expectedIntent: 'recommendation',
+    message: 'recommend something similar',
+    responseAction: {
+      path: '/read/tech/p_garden/astro-3d-performance',
+      type: 'OPEN_PATH',
+    },
+  },
+  {
+    actionTargetId: 'p_garden',
+    actionType: 'TELEPORT',
+    expectedIntent: 'discovery',
+    message: 'what changed recently?',
+    responseAction: {
+      targetId: 'p_garden',
+      targetType: 'planet',
+      type: 'TELEPORT',
+    },
+  },
 ] as const;
 
 function createRequest(body: BodyInit) {
@@ -58,22 +111,28 @@ function createRequest(body: BodyInit) {
 }
 
 describe('/api/agent', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.resetModules();
     respondMock.mockReset();
     logAgentRequestMock.mockReset();
     logAgentResponseMock.mockReset();
     logAgentErrorMock.mockReset();
+    logAssistantEventDbInsertTimedOutMock.mockReset();
     recordAssistantEventMock.mockReset();
+    recordAssistantEventMock.mockResolvedValue(undefined);
     respondMock.mockResolvedValue({
       status: 200,
       response: {
-        message: '已锁定数字花园日志，准备切入近地轨道。',
         action: {
-          type: 'TELEPORT',
-          targetType: 'planet',
           targetId: 'p_garden',
+          targetType: 'planet',
+          type: 'TELEPORT',
         },
+        message: 'Locked onto the digital garden log. Preparing local orbit.',
       },
     });
   });
@@ -141,7 +200,7 @@ describe('/api/agent', () => {
             routeType: 'node',
             starId: 'tech',
           },
-          message: '总结当前页面',
+          message: 'summarize current page',
         }),
       ),
     } as Parameters<typeof POST>[0]);
@@ -161,32 +220,33 @@ describe('/api/agent', () => {
       request: createRequest(
         JSON.stringify({
           context: {
-            routeType: 'node',
-            starId: 'tech',
             planetId: 'p_garden',
+            routeType: 'node',
             slug: 'why-3d-galaxy',
+            starId: 'tech',
           },
-          message: '总结当前页面',
+          message: 'summarize current page',
         }),
       ),
     } as Parameters<typeof POST>[0]);
 
     expect(respondMock).toHaveBeenCalledWith({
       context: {
-        routeType: 'node',
-        starId: 'tech',
         planetId: 'p_garden',
+        routeType: 'node',
         slug: 'why-3d-galaxy',
+        starId: 'tech',
       },
-      message: '总结当前页面',
+      message: 'summarize current page',
       requestId: 'req-test-1',
     });
     expect(response.status).toBe(200);
     expect(recordAssistantEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         interactionIntent: 'content_understanding',
-        message: '总结当前页面',
+        message: 'summarize current page',
         planetId: 'p_garden',
+        requestId: 'req-test-1',
         routeType: 'node',
         slug: 'why-3d-galaxy',
         starId: 'tech',
@@ -196,13 +256,13 @@ describe('/api/agent', () => {
   });
 
   it.each(phase2Cases)(
-    'accepts phase 2 prompt "%s" and forwards it to agentService unchanged',
-    async (message) => {
+    'forwards phase 2 prompt "%s" unchanged and records the expected intent',
+    async ({ expectedIntent, message }) => {
       respondMock.mockResolvedValueOnce({
         status: 200,
         response: {
-          message: `handled: ${message}`,
           action: null,
+          message: `handled: ${message}`,
         },
       });
 
@@ -217,16 +277,14 @@ describe('/api/agent', () => {
       });
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
-        message: `handled: ${message}`,
         action: null,
+        message: `handled: ${message}`,
       });
       expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          interactionIntent:
-            message === '我是第一次来，怎么逛比较合适'
-              ? 'onboarding'
-              : 'content_understanding',
+          interactionIntent: expectedIntent,
           message,
+          requestId: 'req-test-1',
           routeType: 'hub',
           success: true,
         }),
@@ -236,21 +294,17 @@ describe('/api/agent', () => {
 
   it.each(phase3Cases)(
     'records phase 3 prompt "%s" with the expected interaction intent',
-    async ({ expectedIntent, message }) => {
+    async ({
+      actionTargetId,
+      actionType,
+      expectedIntent,
+      message,
+      responseAction,
+    }) => {
       respondMock.mockResolvedValueOnce({
         status: 200,
         response: {
-          action:
-            expectedIntent === 'recommendation'
-              ? {
-                  type: 'OPEN_PATH',
-                  path: '/read/tech/p_garden/astro-3d-performance',
-                }
-              : {
-                  type: 'TELEPORT',
-                  targetId: 'p_garden',
-                  targetType: 'planet',
-                },
+          action: responseAction,
           message: `handled: ${message}`,
         },
       });
@@ -263,14 +317,11 @@ describe('/api/agent', () => {
       expect(response.status).toBe(200);
       expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          actionTargetId:
-            expectedIntent === 'recommendation'
-              ? '/read/tech/p_garden/astro-3d-performance'
-              : 'p_garden',
-          actionType:
-            expectedIntent === 'recommendation' ? 'OPEN_PATH' : 'TELEPORT',
+          actionTargetId,
+          actionType,
           interactionIntent: expectedIntent,
           message,
+          requestId: 'req-test-1',
           routeType: 'hub',
           success: true,
         }),
@@ -278,7 +329,8 @@ describe('/api/agent', () => {
     },
   );
 
-  it('does not block the response when assistant event logging is slow', async () => {
+  it('waits for assistant event persistence to finish before returning success responses', async () => {
+    vi.useFakeTimers();
     let resolveEventWrite: (() => void) | undefined;
     recordAssistantEventMock.mockImplementation(
       () =>
@@ -287,86 +339,79 @@ describe('/api/agent', () => {
         }),
     );
 
+    const { ASSISTANT_EVENT_WRITE_TIMEOUT_MS, POST } = await loadRoute();
+    const responsePromise = Promise.resolve(
+      POST({
+        request: createRequest(
+          JSON.stringify({ message: 'introduce this website' }),
+        ),
+      } as Parameters<typeof POST>[0]),
+    );
+    const settledSpy = vi.fn();
+    void responsePromise.then(settledSpy);
+
+    await vi.advanceTimersByTimeAsync(ASSISTANT_EVENT_WRITE_TIMEOUT_MS - 1);
+
+    expect(recordAssistantEventMock).toHaveBeenCalledTimes(1);
+    expect(settledSpy).not.toHaveBeenCalled();
+
+    resolveEventWrite?.();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
+    expect(logAssistantEventDbInsertTimedOutMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the main response when assistant event persistence times out', async () => {
+    vi.useFakeTimers();
+    recordAssistantEventMock.mockImplementation(() => new Promise<void>(() => {}));
+
+    const { ASSISTANT_EVENT_WRITE_TIMEOUT_MS, POST } = await loadRoute();
+    const responsePromise = Promise.resolve(
+      POST({
+        request: createRequest(
+          JSON.stringify({ message: 'open digital garden log' }),
+        ),
+      } as Parameters<typeof POST>[0]),
+    );
+    const settledSpy = vi.fn();
+    void responsePromise.then(settledSpy);
+
+    await vi.advanceTimersByTimeAsync(ASSISTANT_EVENT_WRITE_TIMEOUT_MS - 1);
+    expect(settledSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
+    expect(logAssistantEventDbInsertTimedOutMock).toHaveBeenCalledWith({
+      actionTargetId: 'p_garden',
+      actionType: 'TELEPORT',
+      interactionIntent: 'navigation',
+      requestId: 'req-test-1',
+      timeoutMs: ASSISTANT_EVENT_WRITE_TIMEOUT_MS,
+    });
+  });
+
+  it('keeps the main response when assistant event persistence fails', async () => {
+    recordAssistantEventMock.mockRejectedValueOnce(new Error('insert failed'));
+
     const { POST } = await loadRoute();
     const response = await POST({
-      request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
+      request: createRequest(JSON.stringify({ message: 'introduce this website' })),
     } as Parameters<typeof POST>[0]);
 
     expect(response.status).toBe(200);
-    expect(recordAssistantEventMock).toHaveBeenCalledTimes(1);
-    resolveEventWrite?.();
-  });
-
-  it('formats PostgREST-style assistant event errors without blocking the response', async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
-
-    recordAssistantEventMock.mockRejectedValueOnce({
-      code: '57014',
-      details: 'statement timeout',
-      hint: 'Retry with a shorter query.',
-      message: 'Failed to insert assistant event.',
-      status: 504,
-    });
-
-    try {
-      const { POST } = await loadRoute();
-      const response = await POST({
-        request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
-      } as Parameters<typeof POST>[0]);
-
-      expect(response.status).toBe(200);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[assistant events unavailable]',
-        'message=Failed to insert assistant event. code=57014 details=statement timeout hint=Retry with a shorter query. status=504',
-      );
-    } finally {
-      consoleErrorSpy.mockRestore();
-    }
-  });
-
-  it('formats nested fetch-style assistant event errors without blocking the response', async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
-
-    const fetchLikeError = Object.assign(new Error('fetch failed'), {
-      cause: {
-        code: 'ETIMEDOUT',
-        response: {
-          status: 503,
-          statusText: 'Service Unavailable',
-        },
-      },
-    });
-
-    recordAssistantEventMock.mockRejectedValueOnce(fetchLikeError);
-
-    try {
-      const { POST } = await loadRoute();
-      const response = await POST({
-        request: createRequest(JSON.stringify({ message: '介绍一下这个网站' })),
-      } as Parameters<typeof POST>[0]);
-
-      expect(response.status).toBe(200);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[assistant events unavailable]',
-        'message=fetch failed code=ETIMEDOUT status=503 statusText=Service Unavailable',
-      );
-    } finally {
-      consoleErrorSpy.mockRestore();
-    }
+    expect(logAssistantEventDbInsertTimedOutMock).not.toHaveBeenCalled();
   });
 
   it('marks whitespace-only requests as unsuccessful assistant events', async () => {
     respondMock.mockResolvedValueOnce({
       status: 422,
       response: {
-        message: '`message` is required.',
         action: null,
+        message: '`message` is required.',
       },
     });
 
@@ -378,8 +423,11 @@ describe('/api/agent', () => {
     expect(response.status).toBe(422);
     expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        actionTargetId: null,
+        actionType: null,
         interactionIntent: 'general_chat',
         message: '',
+        requestId: 'req-test-1',
         routeType: 'hub',
         success: false,
       }),
@@ -390,17 +438,17 @@ describe('/api/agent', () => {
     const { POST } = await loadRoute();
     const response = await POST({
       request: createRequest(
-        JSON.stringify({ message: '打开数字花园日志' }),
+        JSON.stringify({ message: 'open digital garden log' }),
       ),
     } as Parameters<typeof POST>[0]);
 
     expect(respondMock).toHaveBeenCalledWith({
-      message: '打开数字花园日志',
+      message: 'open digital garden log',
       requestId: 'req-test-1',
     });
     expect(logAgentRequestMock).toHaveBeenCalledWith({
       isNavigationIntent: true,
-      messageLength: '打开数字花园日志'.length,
+      messageLength: 'open digital garden log'.length,
       model: '@cf/zai-org/glm-4.7-flash',
       provider: 'cloudflare',
       requestId: 'req-test-1',
@@ -411,7 +459,7 @@ describe('/api/agent', () => {
       actionType: 'TELEPORT',
       isNavigationIntent: true,
       latencyMs: expect.any(Number),
-      messageLength: '打开数字花园日志'.length,
+      messageLength: 'open digital garden log'.length,
       model: '@cf/zai-org/glm-4.7-flash',
       provider: 'cloudflare',
       requestId: 'req-test-1',
@@ -419,19 +467,20 @@ describe('/api/agent', () => {
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      message: '已锁定数字花园日志，准备切入近地轨道。',
       action: {
-        type: 'TELEPORT',
-        targetType: 'planet',
         targetId: 'p_garden',
+        targetType: 'planet',
+        type: 'TELEPORT',
       },
+      message: 'Locked onto the digital garden log. Preparing local orbit.',
     });
     expect(recordAssistantEventMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         actionTargetId: 'p_garden',
         actionType: 'TELEPORT',
         interactionIntent: 'navigation',
-        message: '打开数字花园日志',
+        message: 'open digital garden log',
+        requestId: 'req-test-1',
         routeType: 'hub',
         success: true,
       }),
@@ -444,14 +493,14 @@ describe('/api/agent', () => {
     const { POST } = await loadRoute();
     const response = await POST({
       request: createRequest(
-        JSON.stringify({ message: '打开数字花园日志' }),
+        JSON.stringify({ message: 'open digital garden log' }),
       ),
     } as Parameters<typeof POST>[0]);
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
-      message: '[agent unavailable] failed to reach the Dyson command relay.',
       action: null,
+      message: '[agent unavailable] failed to reach the Dyson command relay.',
     });
     expect(logAgentErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'boom' }),
@@ -465,7 +514,7 @@ describe('/api/agent', () => {
     expect(logAgentResponseMock).toHaveBeenLastCalledWith({
       isNavigationIntent: true,
       latencyMs: expect.any(Number),
-      messageLength: '打开数字花园日志'.length,
+      messageLength: 'open digital garden log'.length,
       model: '@cf/zai-org/glm-4.7-flash',
       provider: 'cloudflare',
       requestId: 'req-test-1',
@@ -476,7 +525,8 @@ describe('/api/agent', () => {
         actionTargetId: null,
         actionType: null,
         interactionIntent: 'navigation',
-        message: '打开数字花园日志',
+        message: 'open digital garden log',
+        requestId: 'req-test-1',
         routeType: 'hub',
         success: false,
       }),

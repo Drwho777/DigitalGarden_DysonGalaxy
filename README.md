@@ -81,9 +81,31 @@ npm run check
 npm run test
 npm run test:models
 npm run test:e2e
+npm run test:integration:assistant-events:vercel
 npm run build
 npm run preview
 ```
+
+## Remote assistant_events verification
+
+Use `npm run test:integration:assistant-events:vercel` to verify that a Vercel
+deployment really writes a new row into `assistant_events` after a real
+`/api/agent` request.
+
+Required env vars:
+
+```env
+VERCEL_AGENT_API_URL=https://your-project.vercel.app
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+Notes:
+
+- `VERCEL_AGENT_API_URL` is the deployment base URL, not the full `/api/agent` path.
+- `my-project.vercel.app` is accepted and will be normalized to `https://my-project.vercel.app`.
+- `localhost`, `127.0.0.1`, and `::1` are rejected for `VERCEL_AGENT_API_URL` to avoid accidentally hitting a local server.
+- If you use a custom production domain, put that base URL in `VERCEL_AGENT_API_URL` instead.
 
 - `npm run dev`：启动 Astro 开发服务
 - `npm run check`：运行 Astro 类型检查与内容校验

@@ -37,6 +37,16 @@ function normalizeEnvValue(value: string | undefined) {
   return trimmedValue ? trimmedValue : undefined;
 }
 
+export function mergeRuntimeEnvSources(
+  buildTimeEnv: RuntimeEnv = {},
+  runtimeEnv: RuntimeEnv = {},
+): RuntimeEnv {
+  return {
+    ...(buildTimeEnv ?? {}),
+    ...(runtimeEnv ?? {}),
+  };
+}
+
 export function readRuntimeEnv(): RuntimeEnv {
   const importMetaEnv = (
     import.meta as ImportMeta & {
@@ -50,10 +60,10 @@ export function readRuntimeEnv(): RuntimeEnv {
     };
   };
 
-  return {
-    ...(runtimeGlobal.process?.env ?? {}),
-    ...(importMetaEnv ?? {}),
-  };
+  return mergeRuntimeEnvSources(
+    importMetaEnv ?? {},
+    runtimeGlobal.process?.env ?? {},
+  );
 }
 
 function resolveProvider(env: RuntimeEnv): AIProviderId {

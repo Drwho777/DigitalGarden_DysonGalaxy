@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:integration:assistant-events:connectivity": "node --test tests/integration/assistant-events.connectivity.remote.test.mjs",
     "test:integration:assistant-events": "node --test tests/integration/assistant-events.remote.test.mjs",
+    "test:integration:assistant-events:vercel": "node --test tests/integration/assistant-events.vercel.remote.test.mjs",
     "test:models": "node scripts/model-smoke.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
