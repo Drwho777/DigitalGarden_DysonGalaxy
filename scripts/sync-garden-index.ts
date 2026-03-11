@@ -1,12 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { embedDocument } from '../src/lib/ai/embedding.ts';
+import { syncNodeEmbeddings } from '../src/lib/content-sync/embeddings-sync.ts';
 import { loadMarkdownSourceNodes } from '../src/lib/content-sync/markdown-source.ts';
 import { syncNodesToSupabase } from '../src/lib/content-sync/nodes-sync.ts';
 
 function readCliFlags(argv: string[]) {
   return {
+    changedOnly: argv.includes('--changed-only'),
     dryRun: argv.includes('--dry-run'),
+    withEmbeddings: argv.includes('--with-embeddings'),
   };
 }
 
@@ -44,6 +48,15 @@ function readScriptEnv() {
   };
 }
 
+function hydrateProcessEnvForScript() {
+  const env = readScriptEnv();
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string' && value !== '') {
+      process.env[key] = value;
+    }
+  }
+}
+
 function createScriptSupabaseClient() {
   const env = readScriptEnv();
   const url = env.SUPABASE_URL?.trim() || env.PUBLIC_SUPABASE_URL?.trim();
@@ -65,28 +78,155 @@ function createScriptSupabaseClient() {
   });
 }
 
+function createNodeKey(input: {
+  planetId: string;
+  slug: string;
+  starId: string;
+}) {
+  return `${input.starId}::${input.planetId}::${input.slug}`;
+}
+
+async function loadExistingNodesFromSupabase(
+  supabase: ReturnType<typeof createScriptSupabaseClient>,
+) {
+  const { data, error } = await supabase
+    .from('nodes')
+    .select('id, star_id, planet_id, slug, content_hash');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as Array<{
+    content_hash: string | null;
+    id: string;
+    planet_id: string;
+    slug: string;
+    star_id: string;
+  }>;
+}
+
 async function main() {
+  hydrateProcessEnvForScript();
   const flags = readCliFlags(process.argv.slice(2));
   const sourceNodes = await loadMarkdownSourceNodes();
+  const needsRemoteRead = flags.changedOnly || flags.withEmbeddings;
+
+  const supabase = flags.dryRun && !needsRemoteRead
+    ? null
+    : createScriptSupabaseClient();
+  const existingNodes = needsRemoteRead && supabase
+    ? await loadExistingNodesFromSupabase(supabase)
+    : [];
+  const existingNodeMap = new Map(
+    existingNodes.map((node) => [
+      createNodeKey({
+        planetId: node.planet_id,
+        slug: node.slug,
+        starId: node.star_id,
+      }),
+      node,
+    ]),
+  );
+  const changedSourceNodes = sourceNodes.filter((node) => {
+    const existingNode = existingNodeMap.get(
+      createNodeKey({
+        planetId: node.planetId,
+        slug: node.slug,
+        starId: node.starId,
+      }),
+    );
+
+    return existingNode?.content_hash !== node.contentHash;
+  });
+  const nodesToSync = flags.changedOnly ? changedSourceNodes : sourceNodes;
+  const skippedCount = flags.changedOnly
+    ? sourceNodes.length - nodesToSync.length
+    : 0;
 
   if (flags.dryRun) {
-    console.log(`${sourceNodes.length} nodes scanned, ${sourceNodes.length} nodes ready to upsert.`);
+    const summary = await syncNodesToSupabase({
+      dryRun: true,
+      sourceNodes: nodesToSync,
+      supabase: {
+        from() {
+          throw new Error('Dry-run mode does not write to Supabase.');
+        },
+      },
+    });
+
+    console.log(
+      `${sourceNodes.length} nodes scanned, ${changedSourceNodes.length} changed, ${skippedCount} skipped, ${summary.readyToUpsert} nodes ready to upsert.`,
+    );
     return;
   }
 
-  const supabase = createScriptSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase client is required outside dry-run mode.');
+  }
+
   const summary = await syncNodesToSupabase({
-    sourceNodes,
+    sourceNodes: nodesToSync,
     supabase,
   });
+  let embeddedChunkCount = 0;
 
-  console.log(`${sourceNodes.length} nodes scanned, ${summary.upserted} nodes upserted.`);
+  if (flags.withEmbeddings && nodesToSync.length > 0) {
+    const refreshedNodes = await loadExistingNodesFromSupabase(supabase);
+    const refreshedNodeMap = new Map(
+      refreshedNodes.map((node) => [
+        createNodeKey({
+          planetId: node.planet_id,
+          slug: node.slug,
+          starId: node.star_id,
+        }),
+        node,
+      ]),
+    );
+    const embeddingSummary = await syncNodeEmbeddings({
+      changedNodes: nodesToSync.map((node) => {
+        const refreshedNode = refreshedNodeMap.get(
+          createNodeKey({
+            planetId: node.planetId,
+            slug: node.slug,
+            starId: node.starId,
+          }),
+        );
+
+        if (!refreshedNode?.id) {
+          throw new Error(
+            `Unable to resolve node id after upsert for ${node.starId}/${node.planetId}/${node.slug}.`,
+          );
+        }
+
+        return {
+          contentHash: node.contentHash,
+          contentRaw: node.body,
+          id: refreshedNode.id,
+        };
+      }),
+      embedDocument,
+      supabase: {
+        rpc: supabase.rpc.bind(supabase),
+      },
+    });
+    embeddedChunkCount = embeddingSummary.embeddedChunkCount;
+  }
+
+  console.log(
+    `${sourceNodes.length} nodes scanned, ${changedSourceNodes.length} changed, ${skippedCount} skipped, ${summary.upserted} nodes upserted, ${embeddedChunkCount} embedded chunks.`,
+  );
 }
 
 main().catch((error) => {
-  console.error(
-    '[sync:garden:index failed]',
-    error instanceof Error ? error.message : String(error),
-  );
+  if (error instanceof Error) {
+    console.error('[sync:garden:index failed]', error.message);
+    if ('cause' in error && error.cause) {
+      console.error('[sync:garden:index cause]', error.cause);
+    }
+  } else {
+    console.error('[sync:garden:index failed]');
+    console.error(error);
+  }
   process.exitCode = 1;
 });

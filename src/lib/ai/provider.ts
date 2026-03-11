@@ -1,7 +1,7 @@
 import type { LanguageModel } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { resolveAIConfig, type AIProviderConfig } from './config';
+import { resolveAIConfig, type AIProviderConfig } from './config.ts';
 
 export interface ResolvedLanguageModel {
   config: AIProviderConfig;

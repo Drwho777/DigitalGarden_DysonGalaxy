@@ -5,11 +5,11 @@ import {
   AIConfigError,
   DEFAULT_AI_PROVIDER,
   readRuntimeEnv,
-} from './config';
-import { CLOUDFLARE_OPENAI_COMPAT_BASE_URL } from './provider';
+} from './config.ts';
+import { CLOUDFLARE_OPENAI_COMPAT_BASE_URL } from './provider.ts';
 
 const DEFAULT_GOOGLE_EMBEDDING_MODEL = 'gemini-embedding-001';
-export const EMBEDDING_VECTOR_DIMENSIONS = 1536;
+export const EMBEDDING_VECTOR_DIMENSIONS = 1024;
 
 interface GoogleEmbeddingConfig {
   apiKey: string;
@@ -54,7 +54,9 @@ export function readEmbeddingVectorDimensions(
 function resolveEmbeddingProvider(
   env: Record<string, string | undefined>,
 ): EmbeddingConfig['provider'] {
-  const configuredProvider = normalizeEnvValue(env.AI_PROVIDER)?.toLowerCase();
+  const configuredProvider = normalizeEnvValue(
+    env.EMBEDDING_PROVIDER ?? env.AI_PROVIDER,
+  )?.toLowerCase();
 
   if (!configuredProvider) {
     return DEFAULT_AI_PROVIDER;
@@ -65,7 +67,7 @@ function resolveEmbeddingProvider(
   }
 
   throw new AIConfigError(
-    `Unsupported AI_PROVIDER "${configuredProvider}". Expected "google" or "cloudflare".`,
+    `Unsupported embedding provider "${configuredProvider}". Expected "google" or "cloudflare".`,
   );
 }
 

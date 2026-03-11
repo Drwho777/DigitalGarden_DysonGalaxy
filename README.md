@@ -45,8 +45,9 @@ AI_API_KEY=your_provider_api_key_here
 AI_ACCOUNT_ID=
 SUPABASE_URL=your_supabase_project_url_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
-EMBEDDING_MODEL=gemini-embedding-001
-EMBEDDING_DIMENSIONS=1536
+EMBEDDING_PROVIDER=cloudflare
+EMBEDDING_MODEL=@cf/qwen/qwen3-embedding-0.6b
+EMBEDDING_DIMENSIONS=1024
 ```
 
 说明：
@@ -57,8 +58,10 @@ EMBEDDING_DIMENSIONS=1536
 - 兼容迁移：`google` 可回退到 `GOOGLE_GENERATIVE_AI_API_KEY`，`cloudflare` 可回退到 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`
 - 这是服务端环境变量，只给 `/api/agent` 使用，不要写成 `PUBLIC_` 前缀
 - `SUPABASE_SERVICE_ROLE_KEY` 只给服务端 observability / pgvector 检索使用，不要暴露到前端
-- `EMBEDDING_MODEL` 用于助手的向量检索链路；默认建议 `google` 使用 `gemini-embedding-001`
-- `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1536`
+- `EMBEDDING_PROVIDER` 可选；不填时默认沿用 `AI_PROVIDER`，需要把聊天模型和 embedding 模型分开时再单独指定
+- `EMBEDDING_MODEL` 用于助手的向量检索链路；当前默认示例使用 Cloudflare `@cf/qwen/qwen3-embedding-0.6b`
+- `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1024`
+- 如果后续要切换 embedding 维度，不是只改 `.env` 就够了；还需要同步执行数据库 migration、重建向量索引，并对 `node_embeddings` 做一次全量 backfill
 - 修改 `.env` 后需要重启开发服务
 
 ### 3. 启动开发服务
@@ -85,6 +88,22 @@ npm run test:integration:assistant-events:vercel
 npm run build
 npm run preview
 ```
+
+## 离线索引与 Embedding 回填
+
+`scripts/sync-garden-index.ts` 是离线操作脚本，只给本地运维或 CI 用，不会在浏览器端或 SSR 请求链路里触发。
+
+```bash
+npm run sync:garden:index -- --dry-run
+npm run sync:garden:index -- --with-embeddings
+npm run sync:garden:index -- --with-embeddings --changed-only
+```
+
+说明：
+- `--dry-run` 只扫描 Markdown 与内容哈希，不写入 Supabase
+- `--with-embeddings` 会先同步 `nodes`，再切块并通过 `replace_node_embeddings_for_node` 做事务性替换
+- `--changed-only` 只处理 `content_hash` 发生变化的节点，适合增量回填
+- 运行前需要准备 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 以及可用的 embedding provider 配置
 
 ## Vercel 远端 assistant_events 验收
 
