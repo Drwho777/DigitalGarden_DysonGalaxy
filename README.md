@@ -45,6 +45,7 @@ AI_API_KEY=your_provider_api_key_here
 AI_ACCOUNT_ID=
 SUPABASE_URL=your_supabase_project_url_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+ENABLE_SEMANTIC_RETRIEVAL=false
 EMBEDDING_PROVIDER=cloudflare
 EMBEDDING_MODEL=@cf/qwen/qwen3-embedding-0.6b
 EMBEDDING_DIMENSIONS=1024
@@ -58,6 +59,7 @@ EMBEDDING_DIMENSIONS=1024
 - 兼容迁移：`google` 可回退到 `GOOGLE_GENERATIVE_AI_API_KEY`，`cloudflare` 可回退到 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`
 - 这是服务端环境变量，只给 `/api/agent` 使用，不要写成 `PUBLIC_` 前缀
 - `SUPABASE_SERVICE_ROLE_KEY` 只给服务端 observability / pgvector 检索使用，不要暴露到前端
+- `ENABLE_SEMANTIC_RETRIEVAL` 是唯一的运行时开关；默认保持 `false`，只在完成 backfill 和 `docs/qa/2026-03-11-retrieval-quality-checklist.md` 后再手动切到 `true`
 - `EMBEDDING_PROVIDER` 可选；不填时默认沿用 `AI_PROVIDER`，需要把聊天模型和 embedding 模型分开时再单独指定
 - `EMBEDDING_MODEL` 用于助手的向量检索链路；当前默认示例使用 Cloudflare `@cf/qwen/qwen3-embedding-0.6b`
 - `EMBEDDING_DIMENSIONS` 必须和数据库里的 pgvector 维度一致；当前 schema 使用 `1024`
@@ -104,6 +106,14 @@ npm run sync:garden:index -- --with-embeddings --changed-only
 - `--with-embeddings` 会先同步 `nodes`，再切块并通过 `replace_node_embeddings_for_node` 做事务性替换
 - `--changed-only` 只处理 `content_hash` 发生变化的节点，适合增量回填
 - 运行前需要准备 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 以及可用的 embedding provider 配置
+
+## 语义检索启用门
+
+向量检索目前已经接到服务端内容理解链路，但仍然保持显式门控：
+
+- 只有 `ENABLE_SEMANTIC_RETRIEVAL=true` 才会启用运行时语义检索
+- 检索只作为结构化上下文的补充，不替代本地 deterministic scope
+- 在切换开关前，先完成 `node_embeddings` backfill，并复跑 [docs/qa/2026-03-11-retrieval-quality-checklist.md](./docs/qa/2026-03-11-retrieval-quality-checklist.md)
 
 ## Vercel 远端 assistant_events 验收
 
