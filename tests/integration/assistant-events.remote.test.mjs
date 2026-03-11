@@ -62,8 +62,10 @@ test('assistant_events records a real /api/agent request', async () => {
 
   const payload = await response.json();
   assert.equal(typeof payload.message, 'string');
-  assert.equal(payload.action?.type, 'TELEPORT');
-  assert.equal(payload.action?.targetId, 'p_garden');
+  assert.equal(payload.action, null);
+  assert.equal(payload.recommendations?.mode, 'discovery');
+  assert.equal(payload.recommendations?.items?.[0]?.action?.type, 'TELEPORT');
+  assert.equal(payload.recommendations?.items?.[0]?.action?.targetId, 'p_garden');
 
   const { error, row: eventRow, timeoutMessage } =
     await pollSupabaseQueryUntilMatch({
@@ -97,8 +99,8 @@ test('assistant_events records a real /api/agent request', async () => {
     timeoutMessage ?? `Did not observe a matching assistant_events row within ${timeoutMs}ms.`,
   );
   assert.equal(eventRow.interaction_intent, 'discovery');
-  assert.equal(eventRow.action_type, 'TELEPORT');
-  assert.equal(eventRow.action_target_id, 'p_garden');
+  assert.equal(eventRow.action_type, null);
+  assert.equal(eventRow.action_target_id, null);
   assert.equal(eventRow.success, true);
   assert.equal(typeof eventRow.latency_ms, 'number');
 });

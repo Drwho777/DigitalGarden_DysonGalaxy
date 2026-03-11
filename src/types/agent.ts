@@ -13,6 +13,21 @@ export interface OpenPathAction {
 
 export type AgentAction = TeleportAction | OpenPathAction;
 
+export interface AgentRecommendationItem {
+  action: AgentAction;
+  badge?: string;
+  description: string;
+  hint?: string;
+  id: string;
+  kind: 'primary' | 'secondary';
+  title: string;
+}
+
+export interface AgentRecommendationsPayload {
+  items: AgentRecommendationItem[];
+  mode: 'recommendation' | 'discovery';
+}
+
 export interface AgentRequestPayload {
   message: string;
   context?: AgentRequestContextInput;
@@ -21,6 +36,7 @@ export interface AgentRequestPayload {
 export interface AgentResponse {
   message: string;
   action: AgentAction | null;
+  recommendations?: AgentRecommendationsPayload | null;
 }
 
 export function getAgentActionType(action: AgentAction | null | undefined) {

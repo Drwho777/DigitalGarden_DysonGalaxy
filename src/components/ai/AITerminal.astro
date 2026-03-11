@@ -44,7 +44,9 @@ const { context = { routeType: 'hub' } } = Astro.props;
             <span>Dyson Brain Uplink</span>
             <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Rule-based navigation relay / local MVP</p>
+          <p class="mt-1 text-xs text-slate-500">
+            Deterministic navigation / recommendation handoff
+          </p>
         </div>
 
         <button
@@ -78,8 +80,9 @@ const { context = { routeType: 'hub' } } = Astro.props;
         role="log"
         aria-live="polite"
       >
-        <div class="max-w-[90%] rounded-xl border-l-2 border-[var(--accent-orange)] bg-[rgba(255,140,0,0.12)] px-4 py-3 text-sm leading-6 text-slate-200">
-          星系全景图已展开。你可以试试“带我去 ACG”或“打开数字花园日志”。
+        <div class="max-w-[90%] whitespace-pre-wrap rounded-xl border-l-2 border-[var(--accent-orange)] bg-[rgba(255,140,0,0.12)] px-4 py-3 text-sm leading-6 text-slate-200">
+          星系全景图已经展开。
+          你可以试试“打开数字花园日志”，或说“推荐类似文章”，我会先给你候选再执行跳转。
         </div>
       </div>
 
@@ -88,7 +91,7 @@ const { context = { routeType: 'hub' } } = Astro.props;
           id="ai-terminal-input"
           type="text"
           class="min-w-0 flex-1 rounded-xl border border-[var(--accent-cyan)]/30 bg-black/45 px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[var(--accent-orange)]"
-          placeholder="输入导航指令或专题名称..."
+          placeholder="输入导航指令或想探索的主题..."
           autocomplete="off"
         />
         <button

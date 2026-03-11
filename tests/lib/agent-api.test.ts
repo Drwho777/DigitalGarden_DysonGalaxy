@@ -78,24 +78,46 @@ const phase2Cases = [
 
 const phase3Cases = [
   {
-    actionTargetId: '/read/tech/p_garden/astro-3d-performance',
-    actionType: 'OPEN_PATH',
+    actionTargetId: null,
+    actionType: null,
     expectedIntent: 'recommendation',
     message: 'recommend something similar',
-    responseAction: {
-      path: '/read/tech/p_garden/astro-3d-performance',
-      type: 'OPEN_PATH',
+    responseRecommendations: {
+      items: [
+        {
+          action: {
+            path: '/read/tech/p_garden/astro-3d-performance',
+            type: 'OPEN_PATH',
+          },
+          description: 'A related performance article.',
+          id: 'node:astro-3d-performance',
+          kind: 'primary',
+          title: 'Astro & Three.js performance',
+        },
+      ],
+      mode: 'recommendation',
     },
   },
   {
-    actionTargetId: 'p_garden',
-    actionType: 'TELEPORT',
+    actionTargetId: null,
+    actionType: null,
     expectedIntent: 'discovery',
     message: 'what changed recently?',
-    responseAction: {
-      targetId: 'p_garden',
-      targetType: 'planet',
-      type: 'TELEPORT',
+    responseRecommendations: {
+      items: [
+        {
+          action: {
+            targetId: 'p_garden',
+            targetType: 'planet',
+            type: 'TELEPORT',
+          },
+          description: 'Recently updated content hub.',
+          id: 'planet:p_garden',
+          kind: 'primary',
+          title: 'Digital Garden Log',
+        },
+      ],
+      mode: 'discovery',
     },
   },
 ] as const;
@@ -299,13 +321,14 @@ describe('/api/agent', () => {
       actionType,
       expectedIntent,
       message,
-      responseAction,
+      responseRecommendations,
     }) => {
       respondMock.mockResolvedValueOnce({
         status: 200,
         response: {
-          action: responseAction,
+          action: null,
           message: `handled: ${message}`,
+          recommendations: responseRecommendations,
         },
       });
 

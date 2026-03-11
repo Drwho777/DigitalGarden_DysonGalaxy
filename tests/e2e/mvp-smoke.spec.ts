@@ -14,6 +14,29 @@ interface AgentResponse {
       }
     | null;
   message: string;
+  recommendations?:
+    | {
+        items: Array<{
+          action:
+            | {
+                type: 'TELEPORT';
+                targetType?: 'star' | 'planet';
+                targetId: string;
+              }
+            | {
+                type: 'OPEN_PATH';
+                path: string;
+              };
+          badge?: string;
+          description: string;
+          hint?: string;
+          id: string;
+          kind: 'primary' | 'secondary';
+          title: string;
+        }>;
+        mode: 'recommendation' | 'discovery';
+      }
+    | null;
 }
 
 const GARDEN_PROMPT = '打开数字花园日志';
@@ -104,11 +127,37 @@ async function mockArticleRecommendationRoute(page: Page) {
   await page.route('**/api/agent', async (route) => {
     await route.fulfill({
       body: JSON.stringify({
-        action: {
-          type: 'OPEN_PATH',
-          path: GARDEN_ARTICLE_PATH,
+        action: null,
+        message: '我先帮你筛了几个候选，先看候选再决定打开哪篇。',
+        recommendations: {
+          mode: 'recommendation',
+          items: [
+            {
+              action: {
+                type: 'OPEN_PATH',
+                path: GARDEN_ARTICLE_PATH,
+              },
+              badge: 'ARTICLE',
+              description: '用宇宙隐喻重建个人知识系统。',
+              hint: '2026-03-06 · 工程与架构 / 数字花园日志',
+              id: 'node:why-3d-galaxy',
+              kind: 'primary',
+              title: '从平面到宇宙：为什么我选择 3D 星系作为知识结构？',
+            },
+            {
+              action: {
+                type: 'OPEN_PATH',
+                path: '/read/tech/p_garden/astro-3d-performance',
+              },
+              badge: 'ARTICLE',
+              description: '先守住数据边界和渲染预算。',
+              hint: '2026-03-05 · 工程与架构 / 数字花园日志',
+              id: 'node:astro-3d-performance',
+              kind: 'secondary',
+              title: 'Astro 与 Three.js 共存时，首屏性能应该先守住什么？',
+            },
+          ],
         },
-        message: '我先推荐你看这篇关于 3D 星系结构的文章。',
       }),
       contentType: 'application/json',
       status: 200,
@@ -357,7 +406,7 @@ test.describe('Digital Garden MVP smoke', () => {
     await expect(page.locator('#info-panel-title')).toHaveText(GARDEN_TITLE);
   });
 
-  test('home page terminal can follow an OPEN_PATH recommendation into an article', async ({
+  test('home page terminal shows recommendation candidates before navigating into an article', async ({
     page,
   }) => {
     await mockArticleRecommendationRoute(page);
@@ -366,6 +415,21 @@ test.describe('Digital Garden MVP smoke', () => {
     await openTerminal(page);
     await page.locator('#ai-terminal-input').fill('推荐一篇类似的文章');
     await page.locator('#ai-terminal-send').click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('#ai-terminal-history')).toContainText(
+      '我先帮你筛了几个候选',
+    );
+    await expect(
+      page.locator('[data-agent-recommendations="recommendation"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-agent-recommendation-item="node:why-3d-galaxy"]'),
+    ).toBeVisible();
+
+    await page
+      .locator('[data-agent-recommendation-item="node:why-3d-galaxy"]')
+      .click();
 
     await expect(page).toHaveURL(new RegExp(`${GARDEN_ARTICLE_PATH}$`));
     await expect(page.locator('#reader-navbar')).toBeVisible();
