@@ -79,16 +79,22 @@ function assertRemoteApiBaseUrl(apiBaseUrl, envKey) {
 export function readAssistantEventsRemoteTestConfig(options = {}) {
   const {
     apiBaseUrlEnvKey = 'TARGET_AGENT_API_URL',
+    defaultRequestTimeoutMs,
+    defaultTimeoutMs = 12000,
     fallbackApiBaseUrl = 'http://127.0.0.1:4321',
+    requestTimeoutEnvKey = 'ASSISTANT_EVENTS_REQUEST_TIMEOUT_MS',
+    timeoutEnvKey = 'ASSISTANT_EVENTS_TEST_TIMEOUT_MS',
   } = options;
   const localEnv = readLocalEnvFile();
   const timeoutMs = Number.parseInt(
-    readRuntimeValue('ASSISTANT_EVENTS_TEST_TIMEOUT_MS', localEnv) ?? '12000',
+    readRuntimeValue(timeoutEnvKey, localEnv) ?? String(defaultTimeoutMs),
     10,
   );
+  const resolvedDefaultRequestTimeoutMs =
+    defaultRequestTimeoutMs ?? Math.min(timeoutMs, 8000);
   const requestTimeoutMs = Number.parseInt(
-    readRuntimeValue('ASSISTANT_EVENTS_REQUEST_TIMEOUT_MS', localEnv) ??
-      String(Math.min(timeoutMs, 8000)),
+    readRuntimeValue(requestTimeoutEnvKey, localEnv) ??
+      String(resolvedDefaultRequestTimeoutMs),
     10,
   );
   const configuredApiBaseUrl = readRuntimeValue(apiBaseUrlEnvKey, localEnv);
@@ -144,6 +150,112 @@ export async function withTimeout(promise, timeoutMs, message) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export function isRetryableRemoteError(error) {
+  const formatted = formatRemoteError(error).toLowerCase();
+
+  return (
+    formatted.includes('fetch failed') ||
+    formatted.includes('connect timeout') ||
+    formatted.includes('und_err_connect_timeout') ||
+    formatted.includes('timed out calling') ||
+    formatted.includes('timed out reading') ||
+    formatted.includes('etimedout') ||
+    formatted.includes('econnreset') ||
+    formatted.includes('eai_again')
+  );
+}
+
+export async function retryRemoteOperation(options) {
+  const {
+    execute,
+    retryIntervalMs = 500,
+    timeoutMessage,
+    timeoutMs,
+  } = options;
+  const deadline = Date.now() + timeoutMs;
+  let lastRetryableError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      return await execute();
+    } catch (error) {
+      if (!isRetryableRemoteError(error)) {
+        throw error;
+      }
+
+      lastRetryableError = error;
+      await sleep(retryIntervalMs);
+    }
+  }
+
+  throw new Error(
+    lastRetryableError
+      ? `${timeoutMessage} Last retryable error: ${formatRemoteError(lastRetryableError)}`
+      : timeoutMessage,
+  );
+}
+
+export async function pollSupabaseQueryUntilMatch(options) {
+  const {
+    buildQuery,
+    emptyResultMessage,
+    pollIntervalMs = 500,
+    requestTimeoutMs,
+    timeoutMs,
+    timeoutMessage,
+  } = options;
+  const deadline = Date.now() + timeoutMs;
+  let lastRetryableError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const { data, error } = await withTimeout(
+        buildQuery(),
+        requestTimeoutMs,
+        timeoutMessage,
+      );
+
+      if (error) {
+        if (isRetryableRemoteError(error)) {
+          lastRetryableError = error;
+          await sleep(pollIntervalMs);
+          continue;
+        }
+
+        return {
+          error,
+          row: null,
+        };
+      }
+
+      if (data && data.length > 0) {
+        return {
+          error: null,
+          row: data[0],
+        };
+      }
+    } catch (error) {
+      if (isRetryableRemoteError(error)) {
+        lastRetryableError = error;
+        await sleep(pollIntervalMs);
+        continue;
+      }
+
+      throw error;
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  return {
+    error: lastRetryableError,
+    row: null,
+    timeoutMessage: lastRetryableError
+      ? `${emptyResultMessage} Last retryable error: ${formatRemoteError(lastRetryableError)}`
+      : emptyResultMessage,
+  };
 }
 
 export function formatRemoteError(error) {

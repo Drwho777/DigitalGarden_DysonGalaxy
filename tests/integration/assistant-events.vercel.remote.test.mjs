@@ -3,8 +3,9 @@ import test from 'node:test';
 import {
   createServiceRoleSupabaseClient,
   formatRemoteError,
+  pollSupabaseQueryUntilMatch,
   readAssistantEventsRemoteTestConfig,
-  sleep,
+  retryRemoteOperation,
   withTimeout,
 } from './assistant-events.remote.helpers.mjs';
 
@@ -16,10 +17,16 @@ const {
   timeoutMs,
 } = readAssistantEventsRemoteTestConfig({
   apiBaseUrlEnvKey: 'VERCEL_AGENT_API_URL',
+  defaultRequestTimeoutMs: 15000,
+  defaultTimeoutMs: 30000,
   fallbackApiBaseUrl: undefined,
+  requestTimeoutEnvKey: 'VERCEL_ASSISTANT_EVENTS_REQUEST_TIMEOUT_MS',
+  timeoutEnvKey: 'VERCEL_ASSISTANT_EVENTS_TEST_TIMEOUT_MS',
 });
 
-test('assistant_events records a real Vercel /api/agent request', async () => {
+const TEST_MESSAGE = '\u6253\u5f00\u6570\u5b57\u82b1\u56ed\u65e5\u5fd7';
+
+test('assistant_events records a real Vercel navigation request', async () => {
   assert.ok(
     apiBaseUrl,
     'VERCEL_AGENT_API_URL is required for Vercel deployment verification.',
@@ -39,25 +46,24 @@ test('assistant_events records a real Vercel /api/agent request', async () => {
   });
 
   const requestStartedAt = new Date().toISOString();
-  const response = await withTimeout(
-    fetch(`${apiBaseUrl}/api/agent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        context: {
-          routeType: 'node',
-          starId: 'tech',
-          planetId: 'p_garden',
-          slug: 'why-3d-galaxy',
-        },
-        message: '鏈€杩戞洿鏂扮殑鍑犱釜鏄熺悆',
-      }),
-    }),
-    requestTimeoutMs,
-    `Timed out calling ${apiBaseUrl}/api/agent after ${requestTimeoutMs}ms.`,
-  );
+  const response = await retryRemoteOperation({
+    execute: () =>
+      withTimeout(
+        fetch(`${apiBaseUrl}/api/agent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: TEST_MESSAGE,
+          }),
+        }),
+        requestTimeoutMs,
+        `Timed out calling ${apiBaseUrl}/api/agent after ${requestTimeoutMs}ms.`,
+      ),
+    timeoutMessage: `Failed to call ${apiBaseUrl}/api/agent within ${timeoutMs}ms.`,
+    timeoutMs,
+  });
 
   assert.equal(
     response.ok,
@@ -70,47 +76,36 @@ test('assistant_events records a real Vercel /api/agent request', async () => {
   assert.equal(payload.action?.type, 'TELEPORT');
   assert.equal(payload.action?.targetId, 'p_garden');
 
-  const deadline = Date.now() + timeoutMs;
-  let eventRow = null;
-
-  while (Date.now() < deadline) {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('assistant_events')
-        .select(
-          'message, route_type, star_id, planet_id, slug, interaction_intent, action_type, action_target_id, success, latency_ms, created_at',
-        )
-        .eq('message', '鏈€杩戞洿鏂扮殑鍑犱釜鏄熺悆')
-        .eq('route_type', 'node')
-        .eq('star_id', 'tech')
-        .eq('planet_id', 'p_garden')
-        .eq('slug', 'why-3d-galaxy')
-        .gte('created_at', requestStartedAt)
-        .order('created_at', { ascending: false })
-        .limit(1),
+  const { error, row: eventRow, timeoutMessage } =
+    await pollSupabaseQueryUntilMatch({
+      buildQuery: () =>
+        supabase
+          .from('assistant_events')
+          .select(
+            'message, route_type, star_id, planet_id, slug, interaction_intent, action_type, action_target_id, success, latency_ms, created_at',
+          )
+          .eq('message', TEST_MESSAGE)
+          .eq('route_type', 'hub')
+          .gte('created_at', requestStartedAt)
+          .order('created_at', { ascending: false })
+          .limit(1),
+      emptyResultMessage: `Did not observe a matching assistant_events row within ${timeoutMs}ms.`,
       requestTimeoutMs,
-      `Timed out reading assistant_events from ${supabaseUrl} after ${requestTimeoutMs}ms.`,
-    );
+      timeoutMessage: `Timed out reading assistant_events from ${supabaseUrl} after ${requestTimeoutMs}ms.`,
+      timeoutMs,
+    });
 
-    assert.equal(
-      error,
-      null,
-      formatRemoteError(error) ?? 'assistant_events query failed',
-    );
-
-    if (data && data.length > 0) {
-      [eventRow] = data;
-      break;
-    }
-
-    await sleep(500);
-  }
+  assert.equal(
+    error,
+    null,
+    formatRemoteError(error) ?? 'assistant_events query failed',
+  );
 
   assert.ok(
     eventRow,
-    `Did not observe a matching assistant_events row within ${timeoutMs}ms.`,
+    timeoutMessage ?? `Did not observe a matching assistant_events row within ${timeoutMs}ms.`,
   );
-  assert.equal(eventRow.interaction_intent, 'discovery');
+  assert.equal(eventRow.interaction_intent, 'navigation');
   assert.equal(eventRow.action_type, 'TELEPORT');
   assert.equal(eventRow.action_target_id, 'p_garden');
   assert.equal(eventRow.success, true);

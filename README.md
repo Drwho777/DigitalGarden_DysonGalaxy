@@ -86,13 +86,13 @@ npm run build
 npm run preview
 ```
 
-## Remote assistant_events verification
+## Vercel 远端 assistant_events 验收
 
-Use `npm run test:integration:assistant-events:vercel` to verify that a Vercel
-deployment really writes a new row into `assistant_events` after a real
-`/api/agent` request.
+使用 `npm run test:integration:assistant-events:vercel` 可以验证：
+- 真实的 Vercel `/api/agent` 请求能够返回
+- 对应请求会在 `assistant_events` 表里生成新记录
 
-Required env vars:
+必需环境变量：
 
 ```env
 VERCEL_AGENT_API_URL=https://your-project.vercel.app
@@ -100,12 +100,13 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-Notes:
+说明：
 
-- `VERCEL_AGENT_API_URL` is the deployment base URL, not the full `/api/agent` path.
-- `my-project.vercel.app` is accepted and will be normalized to `https://my-project.vercel.app`.
-- `localhost`, `127.0.0.1`, and `::1` are rejected for `VERCEL_AGENT_API_URL` to avoid accidentally hitting a local server.
-- If you use a custom production domain, put that base URL in `VERCEL_AGENT_API_URL` instead.
+- `VERCEL_AGENT_API_URL` 填站点基址，不要写成完整的 `/api/agent` 路径。
+- 如果你填的是 `my-project.vercel.app`，脚本会自动规范化成 `https://my-project.vercel.app`。
+- `localhost`、`127.0.0.1` 和 `::1` 会被拒绝，避免误打到本地服务。
+- 如果你使用自定义生产域名，也直接填到 `VERCEL_AGENT_API_URL`。
+- 如需放宽 Vercel 验收超时，可选配置 `VERCEL_ASSISTANT_EVENTS_TEST_TIMEOUT_MS` 和 `VERCEL_ASSISTANT_EVENTS_REQUEST_TIMEOUT_MS`。
 
 - `npm run dev`：启动 Astro 开发服务
 - `npm run check`：运行 Astro 类型检查与内容校验
